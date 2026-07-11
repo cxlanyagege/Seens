@@ -16,5 +16,15 @@ src-tauri/            Native Tauri application
   src/jobs/           Background analysis job coordination
 ```
 
-Framework-generated files will be added when the application is initialized.
+## Run locally
 
+Install dependencies and start the native desktop application:
+
+```bash
+npm install
+npm run tauri:dev
+```
+
+Use **Import music** to select an MP3, FLAC, WAV, M4A, AAC, or OGG file. Audio decoding and playback run on a dedicated Rust thread so native audio work does not block the Tauri command handler or React interface.
+
+`npm run dev` starts the browser-only UI preview. Native file import and playback are intentionally unavailable in that mode.

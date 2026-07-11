@@ -6,6 +6,7 @@ coverage/
 
 # Rust
 target/
+src-tauri/gen/
 
 # Python
 __pycache__/
@@ -35,4 +36,3 @@ waveforms/
 
 # Logs
 *.log
-

@@ -113,9 +113,9 @@ Model output is probabilistic. Seenstruments will expose confidence where useful
 
 ### Phase 1: Player and analysis prototype
 
-- [ ] Scaffold the Tauri and React application
-- [ ] Import and play local audio
-- [ ] Build a music library backed by SQLite
+- [x] Scaffold the Tauri and React application
+- [x] Import and play local audio
+- [x] Build a music library backed by SQLite
 - [ ] Generate waveform previews
 - [ ] Detect instruments across an entire track
 - [ ] Display a time-aligned instrument timeline

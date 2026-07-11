@@ -1,0 +1,22 @@
+[package]
+name = "seenstruments"
+version = "0.1.0"
+description = "A local-first music player with instrument analysis"
+authors = ["Seenstruments contributors"]
+edition = "2021"
+
+[lib]
+name = "seenstruments_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+base64 = "0.22"
+lofty = "0.24"
+rodio = { version = "0.21", features = ["symphonia-all"] }
+rusqlite = { version = "0.40", features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
