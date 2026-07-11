@@ -1,0 +1,38 @@
+# JavaScript / TypeScript
+node_modules/
+dist/
+.vite/
+coverage/
+
+# Rust
+target/
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Local application data
+data/
+models/
+stems/
+waveforms/
+*.db
+*.db-shm
+*.db-wal
+
+# Environment and editor files
+.env
+.env.*
+!.env.example
+.DS_Store
+.idea/
+.vscode/
+
+# Logs
+*.log
+
