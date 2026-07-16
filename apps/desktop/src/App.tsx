@@ -8,7 +8,6 @@ import {
   DiscAlbum,
   FolderPlus,
   Gauge,
-  Heart,
   HelpCircle,
   Library,
   ListMusic,
@@ -19,6 +18,7 @@ import {
   Play,
   Plus,
   Repeat2,
+  Search,
   Settings,
   Shuffle,
   SkipBack,
@@ -66,7 +66,7 @@ type Track = {
 
 type LibraryView = "tracks" | "albums" | "artists";
 type AnalysisFilter = "all" | "analyzed" | "pending";
-type AppPage = "library" | "playlists";
+type AppPage = "library" | "playlists" | "search";
 
 const fallbackTrack: Track = { id: 0, title: "No track selected", artist: "Import music to begin", album: "Library", duration: "0:00", year: "", color: "#4c5040", analyzed: false };
 
@@ -97,7 +97,6 @@ function App() {
   const [tracks, setTracks] = useState<Track[]>([]);
   const [selected, setSelected] = useState(fallbackTrack);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [liked, setLiked] = useState(true);
   const [progress, setProgress] = useState(37);
   const [error, setError] = useState<string | null>(null);
   const [libraryView, setLibraryView] = useState<LibraryView>("tracks");
@@ -110,6 +109,8 @@ function App() {
   const [createPlaylistOpen, setCreatePlaylistOpen] = useState(false);
   const [playlistName, setPlaylistName] = useState("");
   const [trackToAdd, setTrackToAdd] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchFocused, setSearchFocused] = useState(false);
 
   const filteredTracks = useMemo(() => tracks.filter((track) => {
     if (analysisFilter === "analyzed") return track.analyzed;
@@ -134,6 +135,13 @@ function App() {
     return [...groups.entries()].map(([name, artistTracks]) => ({ name, tracks: artistTracks }))
       .sort((left, right) => left.name.localeCompare(right.name));
   }, [filteredTracks]);
+
+  const searchResults = useMemo(() => {
+    const query = searchQuery.trim().toLocaleLowerCase();
+    if (!query) return [];
+    return tracks.filter((track) => [track.title, track.artist, track.album]
+      .some((value) => value.toLocaleLowerCase().includes(query)));
+  }, [searchQuery, tracks]);
 
   useEffect(() => {
     // The browser-only Vite preview has no native SQLite backend. In Tauri,
@@ -292,16 +300,32 @@ function App() {
   const activePlaylist = playlists.find((playlist) => playlist.id === activePlaylistId);
   const availablePlaylistTracks = tracks.filter((track) => !playlistTracks.some((playlistTrack) => playlistTrack.id === track.id));
 
+  const showSearchResults = (query = searchQuery) => {
+    if (!query.trim()) return;
+    setSearchQuery(query);
+    setSearchFocused(false);
+    setActivePage("search");
+  };
+
   return (
     <main className="app-shell">
       <aside className="sidebar">
         <div className="brand"><span className="brand__mark"><AudioLines /></span><span>seenstruments</span></div>
+        <div className="sidebar-search">
+          <label className="sidebar-search__field"><Search /><input value={searchQuery} onFocus={() => setSearchFocused(true)} onBlur={() => window.setTimeout(() => setSearchFocused(false), 120)} onChange={(event) => setSearchQuery(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") showSearchResults(); if (event.key === "Escape") setSearchFocused(false); }} placeholder="Search library" /></label>
+          {searchFocused && searchQuery.trim() && <div className="search-suggestions">
+            {searchResults.slice(0, 5).map((track) => (
+              <button onMouseDown={(event) => event.preventDefault()} onClick={() => showSearchResults(track.title)} key={track.id}>
+                <Cover track={track} compact /><span><b>{track.title}</b><small>{track.artist} · {track.album}</small></span>
+              </button>
+            ))}
+            {searchResults.length === 0 && <div className="search-suggestions__empty">No matching music</div>}
+            {searchResults.length > 5 && <button className="search-suggestions__all" onMouseDown={(event) => event.preventDefault()} onClick={() => showSearchResults()}>View all {searchResults.length} results <span>→</span></button>}
+          </div>}
+        </div>
         <nav className="primary-nav" aria-label="Main navigation">
           <button className={`nav-item ${activePage === "library" ? "nav-item--active" : ""}`} onClick={() => setActivePage("library")}><Library /> Library</button>
           <button className={`nav-item ${activePage === "playlists" ? "nav-item--active" : ""}`} onClick={() => setActivePage("playlists")}><ListMusic /> Playlists</button>
-        </nav>
-        <nav className="secondary-nav">
-          <button className="nav-item"><Heart /> Favorites <span>24</span></button>
           <button className="nav-item"><Gauge /> Recently analyzed</button>
         </nav>
         <div className="sidebar__spacer" />
@@ -444,6 +468,25 @@ function App() {
             </div>
           </section>}
 
+          {activePage === "search" && <section className="library-panel search-results-page">
+            <div className="section-heading">
+              <div><span className="eyebrow">LIBRARY SEARCH</span><h1>Search results</h1><p>{searchResults.length} {searchResults.length === 1 ? "result" : "results"} for “{searchQuery.trim()}”</p></div>
+            </div>
+            <div className="search-results-list" role="table" aria-label="Search results">
+              <div className="track-row track-row--header" role="row"><span>#</span><span>Title</span><span>Album</span><span>Year</span><span>Analysis</span><span>Time</span></div>
+              {searchResults.map((track, index) => (
+                <button className={`track-row ${selected.id === track.id ? "track-row--selected" : ""}`} onClick={() => void chooseTrack(track)} key={track.id} role="row">
+                  <span className="track-index">{selected.id === track.id && isPlaying ? <AudioLines /> : index + 1}</span>
+                  <span className="track-title"><Cover track={track} compact /><span><b>{track.title}</b><small>{track.artist}</small></span></span>
+                  <span>{track.album}</span><span>{track.year}</span>
+                  <span><i className={`status-dot ${track.analyzed ? "status-dot--done" : ""}`} />{track.analyzed ? "Analyzed" : "Pending"}</span>
+                  <span>{track.duration}</span>
+                </button>
+              ))}
+              {searchResults.length === 0 && <div className="empty-state">No tracks, artists, or albums match this search.</div>}
+            </div>
+          </section>}
+
           <aside className="insights-panel">
             <div className="now-playing-card">
               <div className="now-playing-card__label">NOW EXPLORING <MoreHorizontal /></div>
@@ -491,7 +534,7 @@ function App() {
 
         {error && <button className="error-toast" onClick={() => setError(null)}>{error}<span>×</span></button>}
         <footer className="player">
-          <div className="player__track"><Cover track={selected} compact /><span><b>{selected.title}</b><small>{selected.artist}</small></span><button className={`bare-button ${liked ? "is-liked" : ""}`} onClick={() => setLiked(!liked)}><Heart fill={liked ? "currentColor" : "none"} /></button></div>
+          <div className="player__track"><Cover track={selected} compact /><span><b>{selected.title}</b><small>{selected.artist}</small></span></div>
           <div className="player__center">
             <div className="transport"><button><Shuffle /></button><button onClick={() => void skipTrack(-1)}><SkipBack /></button><button className="play-button" onClick={() => void togglePlayback()}>{isPlaying ? <Pause fill="currentColor" /> : <Play fill="currentColor" />}</button><button onClick={() => void skipTrack(1)}><SkipForward /></button><button><Repeat2 /></button></div>
             <div className="seek"><small>{formatTime((progress / 100) * (selected.durationSeconds ?? 0))}</small><input type="range" value={progress} onChange={(event) => seekTo(Number(event.target.value))} /><small>{selected.duration}</small></div>
