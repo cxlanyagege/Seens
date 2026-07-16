@@ -33,6 +33,12 @@ pub fn run() {
             audio::player_status,
             db::list_library,
             db::import_library_track,
+            db::list_playlists,
+            db::create_playlist,
+            db::delete_playlist,
+            db::list_playlist_tracks,
+            db::add_track_to_playlist,
+            db::remove_track_from_playlist,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Seenstruments");

@@ -6,6 +6,7 @@ import {
   ChevronDown,
   Disc3,
   DiscAlbum,
+  FolderPlus,
   Gauge,
   Heart,
   HelpCircle,
@@ -24,20 +25,29 @@ import {
   SkipForward,
   SlidersHorizontal,
   Sparkles,
+  Trash2,
   UserRound,
   Volume2,
+  X,
 } from "lucide-react";
 import {
+  addTrackToPlaylist,
   changeVolume,
   chooseAudioFile,
+  createPlaylist,
+  deletePlaylist,
   getPlayerStatus,
   importLibraryTrack,
   isDesktopApp,
   listLibrary,
+  listPlaylists,
+  listPlaylistTracks,
   loadAudio,
   pauseAudio,
   playAudio,
+  removeTrackFromPlaylist,
   seekAudio,
+  type PlaylistSummary,
 } from "./lib/player";
 
 type Track = {
@@ -56,6 +66,7 @@ type Track = {
 
 type LibraryView = "tracks" | "albums" | "artists";
 type AnalysisFilter = "all" | "analyzed" | "pending";
+type AppPage = "library" | "playlists";
 
 const fallbackTrack: Track = { id: 0, title: "No track selected", artist: "Import music to begin", album: "Library", duration: "0:00", year: "", color: "#4c5040", analyzed: false };
 
@@ -92,6 +103,13 @@ function App() {
   const [libraryView, setLibraryView] = useState<LibraryView>("tracks");
   const [analysisFilter, setAnalysisFilter] = useState<AnalysisFilter>("all");
   const [filterOpen, setFilterOpen] = useState(false);
+  const [activePage, setActivePage] = useState<AppPage>("library");
+  const [playlists, setPlaylists] = useState<PlaylistSummary[]>([]);
+  const [activePlaylistId, setActivePlaylistId] = useState<number | null>(null);
+  const [playlistTracks, setPlaylistTracks] = useState<Track[]>([]);
+  const [createPlaylistOpen, setCreatePlaylistOpen] = useState(false);
+  const [playlistName, setPlaylistName] = useState("");
+  const [trackToAdd, setTrackToAdd] = useState("");
 
   const filteredTracks = useMemo(() => tracks.filter((track) => {
     if (analysisFilter === "analyzed") return track.analyzed;
@@ -129,6 +147,24 @@ function App() {
       if (restored[0]) setSelected(restored[0]);
     }).catch((reason) => setError(String(reason)));
   }, []);
+
+  useEffect(() => {
+    if (!isDesktopApp()) return;
+    void listPlaylists().then((savedPlaylists) => {
+      setPlaylists(savedPlaylists);
+      if (savedPlaylists[0]) setActivePlaylistId((current) => current ?? savedPlaylists[0].id);
+    }).catch((reason) => setError(String(reason)));
+  }, []);
+
+  useEffect(() => {
+    if (!isDesktopApp() || activePlaylistId === null) {
+      setPlaylistTracks([]);
+      return;
+    }
+    void listPlaylistTracks(activePlaylistId).then((savedTracks) => {
+      setPlaylistTracks(savedTracks.map((track) => ({ ...track, duration: formatTime(track.durationSeconds), color: "#59634b" })));
+    }).catch((reason) => setError(String(reason)));
+  }, [activePlaylistId]);
 
   useEffect(() => {
     // Rodio owns the authoritative clock. Polling avoids accumulating drift in
@@ -203,7 +239,8 @@ function App() {
   });
 
   const skipTrack = async (offset: number) => {
-    const playable = tracks.filter((track) => track.path);
+    // When browsing a playlist, previous/next follows that playlist's order.
+    const playable = (activePage === "playlists" ? playlistTracks : tracks).filter((track) => track.path);
     if (!playable.length) return setError("Import a local audio file first.");
     const currentIndex = playable.findIndex((track) => track.id === selected.id);
     const nextIndex = currentIndex < 0 ? 0 : (currentIndex + offset + playable.length) % playable.length;
@@ -215,13 +252,53 @@ function App() {
     if (selected.durationSeconds) void runPlayerAction(() => seekAudio((percentage / 100) * selected.durationSeconds!));
   };
 
+  const refreshPlaylists = async (preferredId?: number) => {
+    const updated = await listPlaylists();
+    setPlaylists(updated);
+    if (preferredId !== undefined) setActivePlaylistId(preferredId);
+    else if (activePlaylistId !== null && !updated.some((playlist) => playlist.id === activePlaylistId)) setActivePlaylistId(updated[0]?.id ?? null);
+  };
+
+  const submitPlaylist = () => void runPlayerAction(async () => {
+    const id = await createPlaylist(playlistName);
+    await refreshPlaylists(id);
+    setPlaylistName("");
+    setCreatePlaylistOpen(false);
+  });
+
+  const removePlaylist = () => void runPlayerAction(async () => {
+    if (activePlaylistId === null) return;
+    if (!window.confirm(`Delete “${activePlaylist?.name ?? "this playlist"}”? The tracks will remain in your library.`)) return;
+    await deletePlaylist(activePlaylistId);
+    setPlaylistTracks([]);
+    await refreshPlaylists();
+  });
+
+  const addSelectedTrack = () => void runPlayerAction(async () => {
+    if (activePlaylistId === null || !trackToAdd) return;
+    await addTrackToPlaylist(activePlaylistId, Number(trackToAdd));
+    setTrackToAdd("");
+    const [updatedTracks] = await Promise.all([listPlaylistTracks(activePlaylistId), refreshPlaylists(activePlaylistId)]);
+    setPlaylistTracks(updatedTracks.map((track) => ({ ...track, duration: formatTime(track.durationSeconds), color: "#59634b" })));
+  });
+
+  const removePlaylistTrack = (trackId: number) => void runPlayerAction(async () => {
+    if (activePlaylistId === null) return;
+    await removeTrackFromPlaylist(activePlaylistId, trackId);
+    const [updatedTracks] = await Promise.all([listPlaylistTracks(activePlaylistId), refreshPlaylists(activePlaylistId)]);
+    setPlaylistTracks(updatedTracks.map((track) => ({ ...track, duration: formatTime(track.durationSeconds), color: "#59634b" })));
+  });
+
+  const activePlaylist = playlists.find((playlist) => playlist.id === activePlaylistId);
+  const availablePlaylistTracks = tracks.filter((track) => !playlistTracks.some((playlistTrack) => playlistTrack.id === track.id));
+
   return (
     <main className="app-shell">
       <aside className="sidebar">
         <div className="brand"><span className="brand__mark"><AudioLines /></span><span>seenstruments</span></div>
         <nav className="primary-nav" aria-label="Main navigation">
-          <button className="nav-item nav-item--active"><Library /> Library</button>
-          <button className="nav-item"><ListMusic /> Playlists</button>
+          <button className={`nav-item ${activePage === "library" ? "nav-item--active" : ""}`} onClick={() => setActivePage("library")}><Library /> Library</button>
+          <button className={`nav-item ${activePage === "playlists" ? "nav-item--active" : ""}`} onClick={() => setActivePage("playlists")}><ListMusic /> Playlists</button>
         </nav>
         <nav className="secondary-nav">
           <button className="nav-item"><Heart /> Favorites <span>24</span></button>
@@ -243,7 +320,7 @@ function App() {
 
       <section className="workspace">
         <div className="content">
-          <section className="library-panel">
+          {activePage === "library" && <section className="library-panel">
             <div className="section-heading">
               <div><span className="eyebrow">YOUR COLLECTION</span><h1>Music library</h1><p>{tracks.length} tracks · {Math.round(tracks.reduce((total, track) => total + (track.durationSeconds ?? 0), 0) / 60)} minutes</p></div>
               <button className="primary-button" onClick={importMusic}><Plus /> Add music</button>
@@ -312,7 +389,60 @@ function App() {
             )}
 
             {filteredTracks.length === 0 && <div className="empty-state">{tracks.length === 0 ? "Your library is empty. Add a local audio file to get started." : "No music matches this filter."}</div>}
-          </section>
+          </section>}
+
+          {activePage === "playlists" && <section className="library-panel playlist-page">
+            <div className="section-heading">
+              <div><span className="eyebrow">YOUR COLLECTION</span><h1>Playlists</h1><p>{playlists.length} custom {playlists.length === 1 ? "playlist" : "playlists"}</p></div>
+              <button className="primary-button" onClick={() => setCreatePlaylistOpen(true)}><FolderPlus /> New playlist</button>
+            </div>
+
+            <div className="playlist-layout">
+              <aside className="playlist-index">
+                <div className="playlist-index__heading"><span>Your playlists</span><small>{playlists.length}</small></div>
+                {playlists.map((playlist) => (
+                  <button className={`playlist-index__item ${activePlaylistId === playlist.id ? "active" : ""}`} onClick={() => setActivePlaylistId(playlist.id)} key={playlist.id}>
+                    <span className="playlist-index__icon"><ListMusic /></span>
+                    <span><b>{playlist.name}</b><small>{playlist.trackCount} {playlist.trackCount === 1 ? "track" : "tracks"}</small></span>
+                  </button>
+                ))}
+                {playlists.length === 0 && <div className="playlist-index__empty">Create your first playlist to organize tracks.</div>}
+              </aside>
+
+              <div className="playlist-detail">
+                {activePlaylist ? <>
+                  <div className="playlist-detail__header">
+                    <span className="playlist-detail__art"><ListMusic /></span>
+                    <span><small>PLAYLIST</small><h2>{activePlaylist.name}</h2><p>{activePlaylist.trackCount} tracks · {Math.round(activePlaylist.durationSeconds / 60)} minutes</p></span>
+                    <button className="danger-button" onClick={removePlaylist} title="Delete playlist"><Trash2 /></button>
+                  </div>
+
+                  <div className="playlist-add">
+                    <select value={trackToAdd} onChange={(event) => setTrackToAdd(event.target.value)} disabled={availablePlaylistTracks.length === 0}>
+                      <option value="">{availablePlaylistTracks.length ? "Choose a track from your library" : "All library tracks are already added"}</option>
+                      {availablePlaylistTracks.map((track) => <option value={track.id} key={track.id}>{track.title} — {track.artist}</option>)}
+                    </select>
+                    <button onClick={addSelectedTrack} disabled={!trackToAdd}><Plus /> Add track</button>
+                  </div>
+
+                  <div className="playlist-track-list">
+                    {playlistTracks.map((track, index) => (
+                      <div className={`playlist-track ${selected.id === track.id ? "active" : ""}`} key={track.id}>
+                        <button className="playlist-track__play" onClick={() => void chooseTrack(track)}>
+                          <span>{selected.id === track.id && isPlaying ? <AudioLines /> : index + 1}</span>
+                          <Cover track={track} compact />
+                          <span><b>{track.title}</b><small>{track.artist}</small></span>
+                          <em>{track.duration}</em>
+                        </button>
+                        <button className="playlist-track__remove" onClick={() => removePlaylistTrack(track.id)} title="Remove from playlist"><X /></button>
+                      </div>
+                    ))}
+                    {playlistTracks.length === 0 && <div className="empty-state">This playlist is empty. Add a track from your library above.</div>}
+                  </div>
+                </> : <div className="playlist-detail__empty"><ListMusic /><h2>No playlist selected</h2><p>Use New playlist in the upper-right corner to start building your collection.</p></div>}
+              </div>
+            </div>
+          </section>}
 
           <aside className="insights-panel">
             <div className="now-playing-card">
@@ -334,7 +464,7 @@ function App() {
           </aside>
         </div>
 
-        <section className="timeline-panel">
+        {activePage === "library" && <section className="timeline-panel">
           <div className="timeline-panel__header"><span><b>Instrument timeline</b><small>Click a region to explore the arrangement</small></span><div><button className="chip chip--active">All</button><button className="chip">Rhythm</button><button className="chip">Melody</button></div></div>
           <div className="timeline-content">
             <div className="timeline-labels"><span>Drums</span><span>Bass</span><span>Guitar</span><span>Synth</span></div>
@@ -346,7 +476,18 @@ function App() {
               <div className="playhead" style={{ left: `${progress}%` }}><i /></div>
             </div>
           </div>
-        </section>
+        </section>}
+
+        {createPlaylistOpen && <div className="modal-backdrop" onMouseDown={() => setCreatePlaylistOpen(false)}>
+          <form className="modal" onSubmit={(event) => { event.preventDefault(); submitPlaylist(); }} onMouseDown={(event) => event.stopPropagation()}>
+            <div className="modal__icon"><FolderPlus /></div>
+            <button className="modal__close" type="button" onClick={() => setCreatePlaylistOpen(false)}><X /></button>
+            <h2>Create a playlist</h2>
+            <p>Give your playlist a name. You can add tracks after it is created.</p>
+            <label>Playlist name<input autoFocus maxLength={80} value={playlistName} onChange={(event) => setPlaylistName(event.target.value)} placeholder="e.g. Late night listening" /></label>
+            <div className="modal__actions"><button type="button" onClick={() => setCreatePlaylistOpen(false)}>Cancel</button><button className="primary-button" type="submit" disabled={!playlistName.trim()}>Create playlist</button></div>
+          </form>
+        </div>}
 
         {error && <button className="error-toast" onClick={() => setError(null)}>{error}<span>×</span></button>}
         <footer className="player">
