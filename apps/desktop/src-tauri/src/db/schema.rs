@@ -1,0 +1,36 @@
+//! SQLite schema and connection-level configuration.
+
+use rusqlite::Connection;
+
+pub(super) fn initialize(connection: &Connection) -> Result<(), String> {
+    // WAL keeps reads responsive when background analysis begins writing
+    // results. All statements are idempotent so startup can safely rerun them.
+    connection
+        .execute_batch(
+            "PRAGMA journal_mode = WAL;
+             PRAGMA foreign_keys = ON;
+             CREATE TABLE IF NOT EXISTS tracks (
+               id INTEGER PRIMARY KEY AUTOINCREMENT,
+               path TEXT NOT NULL UNIQUE,
+               title TEXT NOT NULL, artist TEXT NOT NULL, album TEXT NOT NULL,
+               year TEXT NOT NULL DEFAULT '', duration_seconds REAL NOT NULL DEFAULT 0,
+               cover_mime TEXT, cover_data BLOB, analyzed INTEGER NOT NULL DEFAULT 0,
+               imported_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+               updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+             );
+             CREATE TABLE IF NOT EXISTS playlists (
+               id INTEGER PRIMARY KEY AUTOINCREMENT,
+               name TEXT NOT NULL COLLATE NOCASE UNIQUE,
+               created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+               updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+             );
+             CREATE TABLE IF NOT EXISTS playlist_tracks (
+               playlist_id INTEGER NOT NULL REFERENCES playlists(id) ON DELETE CASCADE,
+               track_id INTEGER NOT NULL REFERENCES tracks(id) ON DELETE CASCADE,
+               position INTEGER NOT NULL DEFAULT 0,
+               added_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+               PRIMARY KEY (playlist_id, track_id)
+             );",
+        )
+        .map_err(|error| format!("Could not initialize the music library: {error}"))
+}
