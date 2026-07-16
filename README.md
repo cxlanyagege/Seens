@@ -142,11 +142,3 @@ Seenstruments is designed to process music locally. Audio files and analysis res
 ## Development
 
 Build and development instructions will be added once the initial application scaffold is in place.
-
-## Contributing
-
-The project is at an early stage, so architecture discussions, model evaluations, interface experiments, and focused pull requests are welcome. Please open an issue before beginning a large change so that implementation work can stay aligned with the project direction.
-
-## License
-
-A project license has not been selected yet. Until one is added, the source code is not offered under an open-source license.

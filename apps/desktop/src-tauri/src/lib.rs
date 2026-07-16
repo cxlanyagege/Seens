@@ -12,11 +12,17 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .manage(AudioPlayer::default())
         .setup(|app| {
-            let app_data = app.path().app_data_dir().map_err(|error| format!("Could not locate application data: {error}"))?;
+            // Keep user-generated state outside the application bundle so it
+            // survives upgrades and follows each platform's storage convention.
+            let app_data = app
+                .path()
+                .app_data_dir()
+                .map_err(|error| format!("Could not locate application data: {error}"))?;
             fs::create_dir_all(&app_data)?;
             app.manage(LibraryDb::open(&app_data.join("library.db"))?);
             Ok(())
         })
+        // This is the complete, explicit IPC surface exposed to the webview.
         .invoke_handler(tauri::generate_handler![
             audio::load_audio,
             audio::play_audio,

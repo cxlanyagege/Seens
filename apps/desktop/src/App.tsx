@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Accessibility,
   Activity,
   AudioLines,
   ChevronDown,
   Disc3,
+  DiscAlbum,
   Gauge,
   Heart,
   HelpCircle,
@@ -23,6 +24,7 @@ import {
   SkipForward,
   SlidersHorizontal,
   Sparkles,
+  UserRound,
   Volume2,
 } from "lucide-react";
 import {
@@ -52,8 +54,12 @@ type Track = {
   coverDataUrl?: string | null;
 };
 
+type LibraryView = "tracks" | "albums" | "artists";
+type AnalysisFilter = "all" | "analyzed" | "pending";
+
 const fallbackTrack: Track = { id: 0, title: "No track selected", artist: "Import music to begin", album: "Library", duration: "0:00", year: "", color: "#4c5040", analyzed: false };
 
+// Instrument results remain mock data until the analysis sidecar is connected.
 const instruments = [
   { name: "Drums", confidence: 98, color: "#ef765f", icon: Activity },
   { name: "Bass", confidence: 94, color: "#b97cf2", icon: AudioLines },
@@ -83,8 +89,37 @@ function App() {
   const [liked, setLiked] = useState(true);
   const [progress, setProgress] = useState(37);
   const [error, setError] = useState<string | null>(null);
+  const [libraryView, setLibraryView] = useState<LibraryView>("tracks");
+  const [analysisFilter, setAnalysisFilter] = useState<AnalysisFilter>("all");
+  const [filterOpen, setFilterOpen] = useState(false);
+
+  const filteredTracks = useMemo(() => tracks.filter((track) => {
+    if (analysisFilter === "analyzed") return track.analyzed;
+    if (analysisFilter === "pending") return !track.analyzed;
+    return true;
+  }), [analysisFilter, tracks]);
+
+  const albums = useMemo(() => {
+    const groups = new Map<string, { name: string; artist: string; tracks: Track[] }>();
+    filteredTracks.forEach((track) => {
+      const key = `${track.album}\u0000${track.artist}`;
+      const group = groups.get(key) ?? { name: track.album, artist: track.artist, tracks: [] };
+      group.tracks.push(track);
+      groups.set(key, group);
+    });
+    return [...groups.values()].sort((left, right) => left.name.localeCompare(right.name));
+  }, [filteredTracks]);
+
+  const artists = useMemo(() => {
+    const groups = new Map<string, Track[]>();
+    filteredTracks.forEach((track) => groups.set(track.artist, [...(groups.get(track.artist) ?? []), track]));
+    return [...groups.entries()].map(([name, artistTracks]) => ({ name, tracks: artistTracks }))
+      .sort((left, right) => left.name.localeCompare(right.name));
+  }, [filteredTracks]);
 
   useEffect(() => {
+    // The browser-only Vite preview has no native SQLite backend. In Tauri,
+    // restore the persisted library once when the application mounts.
     if (!isDesktopApp()) return;
     void listLibrary().then((savedTracks) => {
       const restored = savedTracks.map((track) => ({
@@ -96,6 +131,8 @@ function App() {
   }, []);
 
   useEffect(() => {
+    // Rodio owns the authoritative clock. Polling avoids accumulating drift in
+    // a second JavaScript timer and also observes pause/finish state changes.
     if (!isDesktopApp() || !selected.path) return;
     const timer = window.setInterval(async () => {
       try {
@@ -115,6 +152,7 @@ function App() {
   };
 
   const runPlayerAction = async (action: () => Promise<unknown>) => {
+    // Native command failures are normalized into one dismissible UI error.
     try {
       setError(null);
       await action();
@@ -144,6 +182,8 @@ function App() {
       return;
     }
     await runPlayerAction(async () => {
+      // The dialog command loads the audio in a paused state. Metadata is then
+      // persisted before the new item becomes visible and playback starts.
       const loaded = await chooseAudioFile();
       if (!loaded) return;
       const metadata = await importLibraryTrack(loaded.path);
@@ -210,23 +250,68 @@ function App() {
             </div>
 
             <div className="filter-row">
-              <div className="segmented"><button className="active">Tracks</button><button>Albums</button><button>Artists</button></div>
-              <button className="filter-button"><SlidersHorizontal /> All music <ChevronDown /></button>
+              <div className="segmented" aria-label="Library classification">
+                {(["tracks", "albums", "artists"] as LibraryView[]).map((view) => (
+                  <button className={libraryView === view ? "active" : ""} onClick={() => setLibraryView(view)} key={view}>
+                    {view[0].toUpperCase() + view.slice(1)}
+                  </button>
+                ))}
+              </div>
+              <div className="filter-menu">
+                <button className={`filter-button ${analysisFilter !== "all" ? "filter-button--active" : ""}`} onClick={() => setFilterOpen((open) => !open)} aria-expanded={filterOpen}>
+                  <SlidersHorizontal /> {analysisFilter === "all" ? "All music" : analysisFilter === "analyzed" ? "Analyzed" : "Pending"} <ChevronDown />
+                </button>
+                {filterOpen && (
+                  <div className="filter-menu__popover">
+                    {(["all", "analyzed", "pending"] as AnalysisFilter[]).map((filter) => (
+                      <button className={analysisFilter === filter ? "active" : ""} onClick={() => { setAnalysisFilter(filter); setFilterOpen(false); }} key={filter}>
+                        <span>{filter === "all" ? "All music" : filter[0].toUpperCase() + filter.slice(1)}</span>
+                        <small>{filter === "all" ? tracks.length : tracks.filter((track) => filter === "analyzed" ? track.analyzed : !track.analyzed).length}</small>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
 
-            <div className="track-list" role="table" aria-label="Music library">
-              <div className="track-row track-row--header" role="row"><span>#</span><span>Title</span><span>Album</span><span>Year</span><span>Analysis</span><span>Time</span></div>
-              {tracks.map((track, index) => (
-                <button className={`track-row ${selected.id === track.id ? "track-row--selected" : ""}`} onClick={() => void chooseTrack(track)} key={track.id} role="row">
-                  <span className="track-index">{selected.id === track.id && isPlaying ? <AudioLines /> : index + 1}</span>
-                  <span className="track-title"><Cover track={track} compact /><span><b>{track.title}</b><small>{track.artist}</small></span></span>
-                  <span>{track.album}</span><span>{track.year}</span>
-                  <span><i className={`status-dot ${track.analyzed ? "status-dot--done" : ""}`} />{track.analyzed ? "Analyzed" : "Pending"}</span>
-                  <span>{track.duration}</span>
-                </button>
-              ))}
-              {tracks.length === 0 && <div className="empty-state">Your library is empty. Add a local audio file to get started.</div>}
-            </div>
+            {libraryView === "tracks" && (
+              <div className="track-list" role="table" aria-label="Music library">
+                <div className="track-row track-row--header" role="row"><span>#</span><span>Title</span><span>Album</span><span>Year</span><span>Analysis</span><span>Time</span></div>
+                {filteredTracks.map((track, index) => (
+                  <button className={`track-row ${selected.id === track.id ? "track-row--selected" : ""}`} onClick={() => void chooseTrack(track)} key={track.id} role="row">
+                    <span className="track-index">{selected.id === track.id && isPlaying ? <AudioLines /> : index + 1}</span>
+                    <span className="track-title"><Cover track={track} compact /><span><b>{track.title}</b><small>{track.artist}</small></span></span>
+                    <span>{track.album}</span><span>{track.year}</span>
+                    <span><i className={`status-dot ${track.analyzed ? "status-dot--done" : ""}`} />{track.analyzed ? "Analyzed" : "Pending"}</span>
+                    <span>{track.duration}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {libraryView === "albums" && (
+              <div className="collection-grid" aria-label="Albums">
+                {albums.map((album) => (
+                  <button className="collection-card" onClick={() => setSelected(album.tracks[0])} key={`${album.name}-${album.artist}`}>
+                    <Cover track={album.tracks[0]} />
+                    <span className="collection-card__copy"><b>{album.name}</b><small>{album.artist}</small><em><DiscAlbum /> {album.tracks.length} {album.tracks.length === 1 ? "track" : "tracks"}</em></span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {libraryView === "artists" && (
+              <div className="collection-grid collection-grid--artists" aria-label="Artists">
+                {artists.map((artist) => (
+                  <button className="collection-card artist-card" onClick={() => setSelected(artist.tracks[0])} key={artist.name}>
+                    <div className="artist-card__portrait">{artist.tracks[0].coverDataUrl ? <Cover track={artist.tracks[0]} /> : <UserRound />}</div>
+                    <span className="collection-card__copy"><b>{artist.name}</b><small>{new Set(artist.tracks.map((track) => track.album)).size} albums</small><em><Music2 /> {artist.tracks.length} {artist.tracks.length === 1 ? "track" : "tracks"}</em></span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {filteredTracks.length === 0 && <div className="empty-state">{tracks.length === 0 ? "Your library is empty. Add a local audio file to get started." : "No music matches this filter."}</div>}
           </section>
 
           <aside className="insights-panel">

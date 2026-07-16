@@ -1,6 +1,8 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 
+// Types in this file mirror the camelCase payloads serialized by Rust. Keeping
+// the IPC boundary here prevents Tauri-specific calls from leaking into UI code.
 export type LoadedTrack = {
   path: string;
   fileName: string;
@@ -35,6 +37,8 @@ export async function chooseAudioFile(): Promise<LoadedTrack | null> {
     directory: false,
     filters: [{ name: "Audio", extensions: ["mp3", "flac", "wav", "m4a", "aac", "ogg"] }],
   });
+  // Loading validates/decodes the chosen file but leaves it paused. The UI
+  // decides when playback should begin after persisting the library entry.
   return path ? invoke<LoadedTrack>("load_audio", { path }) : null;
 }
 
