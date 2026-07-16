@@ -9,7 +9,11 @@
   --border: #29282b;
   --panel: #111113;
   --accent: #e7fe78;
+  --font-scale: 1;
 }
+
+html[data-font-size="small"] { --font-scale: .9; }
+html[data-font-size="large"] { --font-scale: 1.15; }
 
 * { box-sizing: border-box; }
 body { margin: 0; min-width: 1080px; min-height: 100vh; background: #0a0a0c; }

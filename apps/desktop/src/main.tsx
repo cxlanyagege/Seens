@@ -9,6 +9,7 @@ import "./styles/library.css";
 import "./styles/playlists.css";
 import "./styles/player.css";
 import "./styles/information.css";
+import "./styles/accessibility.css";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
