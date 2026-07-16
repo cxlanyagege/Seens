@@ -40,6 +40,7 @@ function App() {
   const [trackToAdd, setTrackToAdd] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [searchFocused, setSearchFocused] = useState(false);
+  const [timelineOpen, setTimelineOpen] = useState(false);
   const player = usePlayer(setError);
 
   const filteredTracks = useMemo(() => tracks.filter((track) => {
@@ -233,7 +234,7 @@ function App() {
           {showsInsights && <InsightsPanel selected={player.selected} />}
         </div>
 
-        {activePage === "library" && <InstrumentTimeline progress={player.progress} />}
+        <InstrumentTimeline progress={player.progress} visible={timelineOpen} />
         {createPlaylistOpen && <CreatePlaylistModal name={playlistName} onNameChange={setPlaylistName} onClose={() => setCreatePlaylistOpen(false)} onSubmit={submitPlaylist} />}
         {error && <button className="error-toast" onClick={() => setError(null)}>{error}<span>×</span></button>}
         <PlayerBar
@@ -244,6 +245,8 @@ function App() {
           onSkip={(offset) => void player.skip(offset, queue)}
           onSeek={player.seek}
           onVolumeChange={player.setVolume}
+          timelineOpen={timelineOpen}
+          onToggleTimeline={() => setTimelineOpen((open) => !open)}
         />
       </section>
     </main>

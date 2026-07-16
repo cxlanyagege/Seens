@@ -34,15 +34,13 @@ html[data-theme="light"] .nav-item .analysis-progress i { background: #eae9e3; }
 html[data-theme="light"] .library-panel { border-color: #d4d3cb; }
 html[data-theme="light"] .insights-panel { background: #e9e8e2; }
 html[data-theme="light"] :is(.track-row:not(.track-row--header):hover, .track-row--selected, .playlist-track:hover, .playlist-track.active) { background: #e8e7e0 !important; }
-html[data-theme="light"] :is(.track-row, .playlist-track, .playlist-index__item, .help-item, .setting-row, .timeline-panel, .playlist-detail__header, .playlist-track-list) { border-color: #d8d7d0; }
+html[data-theme="light"] :is(.track-row, .playlist-track, .playlist-index__item, .help-item, .setting-row, .playlist-detail__header, .playlist-track-list) { border-color: #d8d7d0; }
 html[data-theme="light"] :is(.track-title b, .collection-card__copy b, .playlist-track__play b, .playlist-detail__header h2, .playlist-detail__empty h2, .now-playing-card h2, .information-page h1, .help-item h2, .information-section h2) { color: #252620; }
 html[data-theme="light"] :is(.track-row, .track-title small, .collection-card__copy small, .playlist-track__play small, .playlist-detail__header p, .now-playing-card p, .help-item p, .information-section p) { color: #6b6c64; }
-html[data-theme="light"] :is(.segmented, .timeline-line, .accessibility-options, .accessibility-stepper button) { background: #e6e5df; border-color: #d1d0c8; }
+html[data-theme="light"] :is(.segmented, .accessibility-options, .accessibility-stepper button) { background: #e6e5df; border-color: #d1d0c8; }
 html[data-theme="light"] .segmented .active { color: #252620; background: #fff; }
-html[data-theme="light"] .timeline-panel { background: #faf9f5; }
 html[data-theme="light"] .player { color: #252620; border-color: #cac9c1; background: #f4f3eef2; box-shadow: 0 -10px 28px #34352d14; }
 html[data-theme="light"] .transport button { color: #62635b; }
 html[data-theme="light"] .transport .play-button { color: #fff; background: #34352e; }
 html[data-theme="light"] .accessibility-options button.active { color: #fff; background: var(--accent); }
 html[data-theme="light"] .cover { box-shadow: 0 12px 30px #34352d24; }
-

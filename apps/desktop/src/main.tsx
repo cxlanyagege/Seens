@@ -10,6 +10,7 @@ import "./styles/playlists.css";
 import "./styles/player.css";
 import "./styles/information.css";
 import "./styles/accessibility.css";
+import "./styles/timeline.css";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

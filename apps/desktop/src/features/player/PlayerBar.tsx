@@ -11,12 +11,14 @@ type PlayerBarProps = {
   onSkip: (offset: number) => void;
   onSeek: (percentage: number) => void;
   onVolumeChange: (volume: number) => void;
+  timelineOpen: boolean;
+  onToggleTimeline: () => void;
 };
 
-export function PlayerBar({ selected, isPlaying, progress, onTogglePlayback, onSkip, onSeek, onVolumeChange }: PlayerBarProps) {
+export function PlayerBar({ selected, isPlaying, progress, onTogglePlayback, onSkip, onSeek, onVolumeChange, timelineOpen, onToggleTimeline }: PlayerBarProps) {
   return (
     <footer className="player">
-      <div className="player__track"><Cover track={selected} compact /><span><b>{selected.title}</b><small>{selected.artist}</small></span></div>
+      <div className="player__track"><button className={`player__cover-toggle ${timelineOpen ? "active" : ""}`} onClick={onToggleTimeline} aria-label={timelineOpen ? "Hide instrument timeline" : "Show instrument timeline"} aria-pressed={timelineOpen} title={timelineOpen ? "Hide instrument timeline" : "Show instrument timeline"}><Cover track={selected} compact /></button><span><b>{selected.title}</b><small>{selected.artist}</small></span></div>
       <div className="player__center">
         <div className="transport">
           <button><Shuffle /></button><button onClick={() => onSkip(-1)}><SkipBack /></button>
@@ -29,4 +31,3 @@ export function PlayerBar({ selected, isPlaying, progress, onTogglePlayback, onS
     </footer>
   );
 }
-
