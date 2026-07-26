@@ -14,7 +14,7 @@ export type Track = {
 
 export type LibraryView = "tracks" | "albums" | "artists";
 export type AnalysisFilter = "all" | "analyzed" | "pending";
-export type AppPage = "library" | "playlists" | "search" | "settings" | "help";
+export type AppPage = "library" | "playlists" | "search" | "settings";
 
 export type AlbumGroup = {
   name: string;

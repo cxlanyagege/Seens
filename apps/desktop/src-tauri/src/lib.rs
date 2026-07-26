@@ -31,6 +31,8 @@ pub fn run() {
             audio::seek_audio,
             audio::set_volume,
             audio::player_status,
+            audio::info::get_audio_info,
+            audio::waveform::get_audio_waveform,
             db::list_library,
             db::import_library_track,
             db::list_playlists,

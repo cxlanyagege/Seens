@@ -4,6 +4,9 @@
 //! messages to that thread instead of sharing the platform audio handle across
 //! command-handler threads (which is not safe on every supported platform).
 
+pub(crate) mod info;
+pub(crate) mod waveform;
+
 use rodio::{Decoder, OutputStream, OutputStreamBuilder, Sink, Source};
 use serde::Serialize;
 use std::{

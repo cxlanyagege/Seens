@@ -9,7 +9,6 @@ import { usePlayer } from "./features/player/usePlayer";
 import { PlaylistsPage } from "./features/playlists/PlaylistsPage";
 import { SearchResultsPage } from "./features/search/SearchResultsPage";
 import { SettingsPage } from "./features/settings/SettingsPage";
-import { HelpPage } from "./features/help/HelpPage";
 import { toTrack } from "./lib/format";
 import { importLibraryTrack, listLibrary } from "./services/library-api";
 import { chooseAudioFile } from "./services/player-api";
@@ -230,11 +229,10 @@ function App() {
           )}
           {activePage === "search" && <SearchResultsPage query={searchQuery} results={searchResults} selected={player.selected} isPlaying={player.isPlaying} onChooseTrack={(track) => void player.chooseTrack(track)} />}
           {activePage === "settings" && <SettingsPage />}
-          {activePage === "help" && <HelpPage />}
           {showsInsights && <InsightsPanel selected={player.selected} />}
         </div>
 
-        <InstrumentTimeline progress={player.progress} visible={timelineOpen} />
+        <InstrumentTimeline onSeek={player.seek} progress={player.progress} track={player.selected} visible={timelineOpen} />
         {createPlaylistOpen && <CreatePlaylistModal name={playlistName} onNameChange={setPlaylistName} onClose={() => setCreatePlaylistOpen(false)} onSubmit={submitPlaylist} />}
         {error && <button className="error-toast" onClick={() => setError(null)}>{error}<span>×</span></button>}
         <PlayerBar

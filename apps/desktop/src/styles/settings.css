@@ -1,0 +1,2 @@
+.settings-page { min-height: calc(100vh - 92px); }
+.settings-version { display: inline-block; padding: 4px 8px; border-radius: 5px; color: var(--accent); background: #202217; font: 600 9px "DM Sans"; }
