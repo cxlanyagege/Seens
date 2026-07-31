@@ -1,15 +1,15 @@
-# Seenstruments
+# Seens
 
 **See what you hear.**
 
-Codename Seenstruments is a local-first desktop music player that helps listeners explore the instruments inside a song. Alongside familiar playback controls, it aims to identify which instruments are present, show when they appear, and eventually let users isolate and inspect individual stems.
+Seens (Codename Seenstruments) is a local-first desktop music player that helps listeners explore the instruments inside a song. Alongside familiar playback controls, it aims to identify which instruments are present, show when they appear, and eventually let users isolate and inspect individual stems.
 
 > [!NOTE]
-> Seenstruments is currently in the planning and early development stage. The features and architecture described below represent the intended direction of the project and may evolve as the first prototype is built.
+> Seens is currently in the planning and early development stage. The features and architecture described below represent the intended direction of the project and may evolve as the first prototype is built.
 
-## Why Seenstruments?
+## Why Seens?
 
-Most music players tell you what is playing. Seenstruments is designed to help explain **what you are hearing**.
+Most music players tell you what is playing. Seens is designed to help explain **what you are hearing**.
 
 It is intended for:
 
@@ -51,7 +51,7 @@ It is intended for:
 
 ## Proposed Architecture
 
-Seenstruments is planned as a cross-platform, local-first application:
+Seens is planned as a cross-platform, local-first application:
 
 ```text
 React + TypeScript
@@ -107,7 +107,7 @@ The intended workflow is:
 5. Save results together with the model version in the local database.
 6. Run computationally expensive stem separation only when requested.
 
-Model output is probabilistic. Seenstruments will expose confidence where useful and avoid presenting uncertain classifications as absolute facts.
+Model output is probabilistic. Seens will expose confidence where useful and avoid presenting uncertain classifications as absolute facts.
 
 ## Roadmap
 
@@ -137,7 +137,7 @@ Model output is probabilistic. Seenstruments will expose confidence where useful
 
 ## Privacy
 
-Seenstruments is designed to process music locally. Audio files and analysis results should remain on the user's device unless an explicit online feature is introduced and enabled by the user in the future.
+Seens is designed to process music locally. Audio files and analysis results should remain on the user's device unless an explicit online feature is introduced and enabled by the user in the future.
 
 ## Development
 
