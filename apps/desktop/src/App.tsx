@@ -5,13 +5,21 @@ import { InsightsPanel } from "./features/analysis/InsightsPanel";
 import { InstrumentTimeline } from "./features/analysis/InstrumentTimeline";
 import { LibraryPage } from "./features/library/LibraryPage";
 import { PlayerBar } from "./features/player/PlayerBar";
+import { QueuePanel } from "./features/player/QueuePanel";
 import { usePlayer } from "./features/player/usePlayer";
 import { PlaylistsPage } from "./features/playlists/PlaylistsPage";
 import { SearchResultsPage } from "./features/search/SearchResultsPage";
 import { SettingsPage } from "./features/settings/SettingsPage";
 import { toTrack } from "./lib/format";
-import { importLibraryTrack, listLibrary } from "./services/library-api";
-import { chooseAudioFile } from "./services/player-api";
+import {
+  chooseAudioFiles,
+  chooseMusicFolder,
+  importLibraryFolder,
+  importLibraryTracks,
+  listLibrary,
+  removeLibraryTracks,
+  type LibraryImportResult,
+} from "./services/library-api";
 import {
   addTrackToPlaylist,
   createPlaylist,
@@ -26,6 +34,7 @@ import type { AnalysisFilter, AppPage, LibraryView, Track } from "./types/music"
 
 function App() {
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [tracks, setTracks] = useState<Track[]>([]);
   const [libraryView, setLibraryView] = useState<LibraryView>("tracks");
   const [analysisFilter, setAnalysisFilter] = useState<AnalysisFilter>("all");
@@ -40,6 +49,7 @@ function App() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchFocused, setSearchFocused] = useState(false);
   const [timelineOpen, setTimelineOpen] = useState(false);
+  const [queueOpen, setQueueOpen] = useState(false);
   const player = usePlayer(setError);
 
   const filteredTracks = useMemo(() => tracks.filter((track) => {
@@ -97,9 +107,18 @@ function App() {
       setPlaylistTracks([]);
       return;
     }
+    let cancelled = false;
+    setPlaylistTracks([]);
     void listPlaylistTracks(activePlaylistId)
-      .then((savedTracks) => setPlaylistTracks(savedTracks.map((track) => toTrack(track))))
-      .catch((reason) => setError(String(reason)));
+      .then((savedTracks) => {
+        if (!cancelled) setPlaylistTracks(savedTracks.map((track) => toTrack(track)));
+      })
+      .catch((reason) => {
+        if (!cancelled) setError(String(reason));
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [activePlaylistId]);
 
   const runAction = async (action: () => Promise<void>) => {
@@ -111,13 +130,35 @@ function App() {
     }
   };
 
-  const importMusic = () => void runAction(async () => {
-    if (!isDesktopApp()) throw new Error("File import and native playback are available in the Tauri app. Run npm run tauri:dev.");
-    const loaded = await chooseAudioFile();
-    if (!loaded) return;
-    const imported = toTrack(await importLibraryTrack(loaded.path), "#9a654b");
-    setTracks((current) => [imported, ...current.filter((track) => track.path !== imported.path)]);
-    await player.playLoadedTrack(imported);
+  const applyImportResult = async (result: LibraryImportResult) => {
+    const imported = result.tracks.map((track) => toTrack(track));
+    const importedPaths = new Set(imported.map((track) => track.path));
+    setTracks((current) => [...imported, ...current.filter((track) => !importedPaths.has(track.path))]);
+    if (!player.selected.path && imported[0]) await player.prepareTrack(imported[0]);
+
+    if (imported.length === 0) {
+      setNotice("No supported audio files were found.");
+      return;
+    }
+    const noun = imported.length === 1 ? "track" : "tracks";
+    const skipped = result.skippedCount ? ` ${result.skippedCount} unsupported or unreadable files were skipped.` : "";
+    setNotice(`Imported ${imported.length} ${noun}.${skipped}`);
+  };
+
+  const importMusicFiles = () => void runAction(async () => {
+    if (!isDesktopApp()) throw new Error("File import is available in the Tauri app. Run npm run tauri:dev.");
+    setNotice(null);
+    const paths = await chooseAudioFiles();
+    if (!paths.length) return;
+    await applyImportResult(await importLibraryTracks(paths));
+  });
+
+  const importMusicFolder = () => void runAction(async () => {
+    if (!isDesktopApp()) throw new Error("Folder import is available in the Tauri app. Run npm run tauri:dev.");
+    setNotice(null);
+    const path = await chooseMusicFolder();
+    if (!path) return;
+    await applyImportResult(await importLibraryFolder(path));
   });
 
   const refreshPlaylists = async (preferredId?: number) => {
@@ -130,7 +171,9 @@ function App() {
   const submitPlaylist = () => void runAction(async () => {
     const id = await createPlaylist(playlistName);
     await refreshPlaylists(id);
+    setActivePage("playlists");
     setPlaylistName("");
+    setTrackToAdd("");
     setCreatePlaylistOpen(false);
   });
 
@@ -164,6 +207,34 @@ function App() {
     await reloadPlaylist();
   });
 
+  const removeTracksFromLibrary = async (trackIds: number[]) => {
+    if (!trackIds.length) return false;
+    const noun = trackIds.length === 1 ? "track" : "tracks";
+    if (!window.confirm(`Remove ${trackIds.length} ${noun} from your library? The audio files will remain on disk.`)) return false;
+
+    try {
+      setError(null);
+      await removeLibraryTracks(trackIds);
+    } catch (reason) {
+      setError(String(reason));
+      return false;
+    }
+
+    const removedIds = new Set(trackIds);
+    setTracks((current) => current.filter((track) => !removedIds.has(track.id)));
+    setPlaylistTracks((current) => current.filter((track) => !removedIds.has(track.id)));
+    if (removedIds.has(player.selected.id)) {
+      setTimelineOpen(false);
+      await player.clearSelection();
+    }
+    try {
+      await refreshPlaylists(activePlaylistId ?? undefined);
+    } catch (reason) {
+      setError(String(reason));
+    }
+    return true;
+  };
+
   const showSearchResults = (query = searchQuery) => {
     if (!query.trim()) return;
     setSearchQuery(query);
@@ -171,25 +242,37 @@ function App() {
     setActivePage("search");
   };
 
+  const selectPlaylist = (id: number) => {
+    setActivePlaylistId(id);
+    setTrackToAdd("");
+    setActivePage("playlists");
+  };
+
   const queue = activePage === "playlists" ? playlistTracks : tracks;
-  const showsInsights = activePage === "library" || activePage === "playlists" || activePage === "search";
+  const showsInsights = (activePage === "library" && tracks.length > 0) || activePage === "playlists" || activePage === "search";
+  const showsUtilityPanel = queueOpen || showsInsights;
+  const playableQueueCount = queue.filter((track) => track.path).length;
 
   return (
     <main className="app-shell">
       <Sidebar
         activePage={activePage}
+        activePlaylistId={activePlaylistId}
+        playlists={playlists}
         tracks={tracks}
         searchQuery={searchQuery}
         searchFocused={searchFocused}
         searchResults={searchResults}
         onPageChange={setActivePage}
+        onSelectPlaylist={selectPlaylist}
+        onCreatePlaylist={() => setCreatePlaylistOpen(true)}
         onSearchQueryChange={setSearchQuery}
         onSearchFocusChange={setSearchFocused}
         onSearch={showSearchResults}
       />
 
       <section className="workspace">
-        <div className={`content ${showsInsights ? "" : "content--single"}`}>
+        <div className={`content ${showsUtilityPanel ? "" : "content--single"}`}>
           {activePage === "library" && (
             <LibraryPage
               tracks={tracks}
@@ -201,7 +284,9 @@ function App() {
               view={libraryView}
               filter={analysisFilter}
               filterOpen={filterOpen}
-              onImport={importMusic}
+              onImportFiles={importMusicFiles}
+              onImportFolder={importMusicFolder}
+              onRemoveTracks={removeTracksFromLibrary}
               onChooseTrack={(track) => void player.chooseTrack(track)}
               onSelectTrack={player.setSelected}
               onViewChange={setLibraryView}
@@ -211,15 +296,12 @@ function App() {
           )}
           {activePage === "playlists" && (
             <PlaylistsPage
-              playlists={playlists}
               activePlaylist={activePlaylist}
               playlistTracks={playlistTracks}
               availableTracks={availablePlaylistTracks}
               selected={player.selected}
               isPlaying={player.isPlaying}
               trackToAdd={trackToAdd}
-              onCreate={() => setCreatePlaylistOpen(true)}
-              onSelectPlaylist={setActivePlaylistId}
               onDelete={removePlaylist}
               onTrackToAddChange={setTrackToAdd}
               onAddTrack={addSelectedTrack}
@@ -229,11 +311,14 @@ function App() {
           )}
           {activePage === "search" && <SearchResultsPage query={searchQuery} results={searchResults} selected={player.selected} isPlaying={player.isPlaying} onChooseTrack={(track) => void player.chooseTrack(track)} />}
           {activePage === "settings" && <SettingsPage />}
-          {showsInsights && <InsightsPanel selected={player.selected} />}
+          {queueOpen ? (
+            <QueuePanel selected={player.selected} tracks={queue} isPlaying={player.isPlaying} onChooseTrack={(track) => void player.chooseTrack(track)} onClose={() => setQueueOpen(false)} />
+          ) : showsInsights ? <InsightsPanel selected={player.selected} /> : null}
         </div>
 
         <InstrumentTimeline onSeek={player.seek} progress={player.progress} track={player.selected} visible={timelineOpen} />
         {createPlaylistOpen && <CreatePlaylistModal name={playlistName} onNameChange={setPlaylistName} onClose={() => setCreatePlaylistOpen(false)} onSubmit={submitPlaylist} />}
+        {notice && <button className="notice-toast" onClick={() => setNotice(null)}>{notice}<span>×</span></button>}
         {error && <button className="error-toast" onClick={() => setError(null)}>{error}<span>×</span></button>}
         <PlayerBar
           selected={player.selected}
@@ -244,7 +329,16 @@ function App() {
           onSeek={player.seek}
           onVolumeChange={player.setVolume}
           timelineOpen={timelineOpen}
-          onToggleTimeline={() => setTimelineOpen((open) => !open)}
+          onToggleTimeline={() => {
+            setQueueOpen(false);
+            setTimelineOpen((open) => !open);
+          }}
+          queueOpen={queueOpen}
+          queueCount={playableQueueCount}
+          onToggleQueue={() => {
+            setTimelineOpen(false);
+            setQueueOpen((open) => !open);
+          }}
         />
       </section>
     </main>

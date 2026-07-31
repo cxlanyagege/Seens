@@ -14,7 +14,7 @@ use rusqlite::Connection;
 use std::{path::Path, sync::Mutex};
 use tauri::State;
 
-use models::{LibraryTrack, PlaylistSummary};
+use models::{LibraryImportResult, LibraryTrack, PlaylistSummary};
 
 /// Application-managed handle to the local music library.
 ///
@@ -51,6 +51,30 @@ pub fn import_library_track(
     library: State<'_, LibraryDb>,
 ) -> Result<LibraryTrack, String> {
     tracks::import_library_track(path, library)
+}
+
+#[tauri::command]
+pub fn import_library_tracks(
+    paths: Vec<String>,
+    library: State<'_, LibraryDb>,
+) -> Result<LibraryImportResult, String> {
+    tracks::import_library_tracks(paths, library)
+}
+
+#[tauri::command]
+pub fn import_library_folder(
+    path: String,
+    library: State<'_, LibraryDb>,
+) -> Result<LibraryImportResult, String> {
+    tracks::import_library_folder(path, library)
+}
+
+#[tauri::command]
+pub fn remove_library_tracks(
+    track_ids: Vec<i64>,
+    library: State<'_, LibraryDb>,
+) -> Result<(), String> {
+    tracks::remove_library_tracks(track_ids, library)
 }
 
 #[tauri::command]

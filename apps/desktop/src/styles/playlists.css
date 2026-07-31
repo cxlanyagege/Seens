@@ -1,12 +1,5 @@
 .playlist-page { min-height: calc(100vh - 92px); }
-.playlist-layout { min-height: 485px; display: grid; grid-template-columns: 185px minmax(0, 1fr); margin-top: 28px; }
-.playlist-index { padding: 0 16px 0 0; border-right: 1px solid #29292c; }
-.playlist-index__heading { height: 34px; display: flex; justify-content: space-between; align-items: center; padding: 0 8px; color: #6e6d68; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .8px; }
-.playlist-index__item { width: 100%; min-width: 0; min-height: 51px; display: flex; align-items: center; gap: 10px; padding: 0 8px; border: 0; border-bottom: 1px solid #202023; color: #8d8b86; background: transparent; text-align: left; cursor: pointer; }
-.playlist-index__item:hover { color: #d5d2ca; }.playlist-index__item.active { color: #eeeae2; box-shadow: inset 2px 0 var(--accent); }
-.playlist-index__icon { width: 29px; height: 29px; flex: 0 0 auto; display: grid; place-items: center; color: var(--accent); }.playlist-index__icon svg { width: 16px; }
-.playlist-index__item > span:last-child { min-width: 0; display: grid; gap: 3px; }.playlist-index__item b { overflow: hidden; font-size: 10px; white-space: nowrap; text-overflow: ellipsis; }.playlist-index__item small { color: #686762; font-size: 8px; }.playlist-index__empty { padding: 22px 9px; color: #64635f; font-size: 9px; line-height: 1.5; text-align: center; }
-.playlist-detail { min-width: 0; padding: 0 0 0 24px; }.playlist-detail__header { display: grid; grid-template-columns: 62px minmax(0, 1fr) 34px; align-items: center; gap: 13px; padding: 0 0 18px; border-bottom: 1px solid #27272a; }
+.playlist-detail { min-width: 0; }.playlist-detail__header { display: grid; grid-template-columns: 62px minmax(0, 1fr) 34px; align-items: center; gap: 13px; padding: 0 0 18px; border-bottom: 1px solid #27272a; }
 .playlist-detail__art { width: 62px; height: 62px; display: grid; place-items: center; color: var(--accent); }.playlist-detail__art svg { width: 31px; height: 31px; stroke-width: 1.2; }
 .playlist-detail__header > span:nth-child(2) { min-width: 0; }.playlist-detail__header small { color: var(--accent); font-size: 7px; font-weight: 700; letter-spacing: 1px; }.playlist-detail__header h2 { overflow: hidden; margin: 4px 0 2px; font: 700 19px "Manrope"; white-space: nowrap; text-overflow: ellipsis; }.playlist-detail__header p { margin: 0; color: #73716c; font-size: 9px; }
 .danger-button { width: 32px; height: 32px; display: grid; place-items: center; padding: 0; border: 1px solid #403034; border-radius: 7px; color: #ad6c70; background: transparent; cursor: pointer; }.danger-button:hover { color: #f3a4a9; border-color: #74454a; background: #2a191c; }.danger-button svg { width: 14px; }

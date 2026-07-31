@@ -18,6 +18,13 @@ pub struct LibraryTrack {
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct LibraryImportResult {
+    pub(super) tracks: Vec<LibraryTrack>,
+    pub(super) skipped_count: usize,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PlaylistSummary {
     pub(super) id: i64,
     pub(super) name: String,

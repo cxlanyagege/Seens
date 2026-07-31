@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { changeVolume, getPlayerStatus, loadAudio, pauseAudio, playAudio, seekAudio } from "../../services/player-api";
+import { changeVolume, getPlayerStatus, loadAudio, pauseAudio, playAudio, seekAudio, stopAudio } from "../../services/player-api";
 import { isDesktopApp } from "../../services/runtime";
 import { fallbackTrack, type Track } from "../../types/music";
 
@@ -45,11 +45,19 @@ export function usePlayer(onError: (message: string | null) => void) {
     setIsPlaying(true);
   });
 
-  const playLoadedTrack = (track: Track) => run(async () => {
+  const prepareTrack = (track: Track) => run(async () => {
+    if (track.path) await loadAudio(track.path);
     setSelected(track);
     setProgress(0);
-    await playAudio();
-    setIsPlaying(true);
+    setIsPlaying(false);
+  });
+
+  const clearSelection = () => run(async () => {
+    const selectedPath = selected.path;
+    setSelected(fallbackTrack);
+    setIsPlaying(false);
+    setProgress(0);
+    if (selectedPath) await stopAudio();
   });
 
   const togglePlayback = () => run(async () => {
@@ -78,6 +86,5 @@ export function usePlayer(onError: (message: string | null) => void) {
     if (selected.path) void run(() => changeVolume(volume));
   };
 
-  return { selected, setSelected, isPlaying, progress, chooseTrack, playLoadedTrack, togglePlayback, skip, seek, setVolume };
+  return { selected, setSelected, isPlaying, progress, chooseTrack, prepareTrack, clearSelection, togglePlayback, skip, seek, setVolume };
 }
-

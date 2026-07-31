@@ -1,6 +1,7 @@
 import { Activity, AudioLines, MoreHorizontal, Music2, Piano, SlidersHorizontal, Sparkles } from "lucide-react";
 import { Cover } from "../../components/Cover";
 import type { Track } from "../../types/music";
+import { useAudioInfo } from "../player/useAudioInfo";
 
 // Placeholder data until the local analysis sidecar supplies real results.
 const instruments = [
@@ -12,12 +13,21 @@ const instruments = [
 ];
 
 export function InsightsPanel({ selected }: { selected: Track }) {
+  const audioInfo = useAudioInfo(selected.path);
+  const quality = formatAudioInfo(audioInfo.data, selected.path, audioInfo.status);
+
   return (
-    <aside className="insights-panel">
+    <aside className="insights-panel utility-panel">
       <div className="now-playing-card">
         <div className="now-playing-card__label">NOW EXPLORING <MoreHorizontal /></div>
         <Cover track={selected} />
         <h2>{selected.title}</h2><p>{selected.artist} · {selected.album}</p>
+        {selected.path && (
+          <div className="now-playing-card__audio" title={quality.details}>
+            <span>Audio quality</span>
+            <strong>{quality.label}</strong>
+          </div>
+        )}
       </div>
       <div className="insight-title"><span><Sparkles /> Instruments detected</span><small>5 found</small></div>
       <div className="instrument-list">
@@ -34,3 +44,28 @@ export function InsightsPanel({ selected }: { selected: Track }) {
   );
 }
 
+function formatSampleRate(sampleRateHz: number) {
+  const kilohertz = sampleRateHz / 1000;
+  return `${Number.isInteger(kilohertz) ? kilohertz : kilohertz.toFixed(1)} KHZ`;
+}
+
+function formatAudioInfo(info: ReturnType<typeof useAudioInfo>["data"], path: string | undefined, status: ReturnType<typeof useAudioInfo>["status"]) {
+  const fallbackFormat = path?.split(".").pop()?.toUpperCase() || "AUDIO";
+  if (!info) return { label: status === "loading" ? "READING…" : fallbackFormat, details: status === "loading" ? "Reading audio information…" : "Audio information unavailable" };
+
+  const format = (info.codec || info.format || fallbackFormat).toUpperCase();
+  const bitrate = info.audioBitrateKbps || info.overallBitrateKbps;
+  const labelParts = [format];
+  if (info.bitDepth) labelParts.push(`${info.bitDepth}-BIT`);
+  else if (bitrate) labelParts.push(`${bitrate} KBPS`);
+  if (info.sampleRateHz) labelParts.push(formatSampleRate(info.sampleRateHz));
+
+  const channelLabel = info.channels === 1 ? "Mono" : info.channels === 2 ? "Stereo" : info.channels ? `${info.channels} channels` : null;
+  const detailParts = [info.codec || info.format];
+  if (info.bitDepth) detailParts.push(`${info.bitDepth}-bit`);
+  if (info.sampleRateHz) detailParts.push(formatSampleRate(info.sampleRateHz).toLowerCase());
+  if (bitrate) detailParts.push(`${bitrate} kbps`);
+  if (channelLabel) detailParts.push(channelLabel);
+  if (info.lossless !== null) detailParts.push(info.lossless ? "Lossless" : "Lossy");
+  return { label: labelParts.join(" · "), details: detailParts.join(" · ") };
+}
