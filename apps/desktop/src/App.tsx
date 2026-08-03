@@ -50,7 +50,8 @@ function App() {
   const [searchFocused, setSearchFocused] = useState(false);
   const [timelineOpen, setTimelineOpen] = useState(false);
   const [queueOpen, setQueueOpen] = useState(false);
-  const player = usePlayer(setError);
+  const queue = activePage === "playlists" ? playlistTracks : tracks;
+  const player = usePlayer(setError, queue);
 
   const filteredTracks = useMemo(() => tracks.filter((track) => {
     if (analysisFilter === "analyzed") return track.analyzed;
@@ -248,7 +249,6 @@ function App() {
     setActivePage("playlists");
   };
 
-  const queue = activePage === "playlists" ? playlistTracks : tracks;
   const showsInsights = (activePage === "library" && tracks.length > 0) || activePage === "playlists" || activePage === "search";
   const showsUtilityPanel = queueOpen || showsInsights;
   const playableQueueCount = queue.filter((track) => track.path).length;
@@ -312,7 +312,7 @@ function App() {
           {activePage === "search" && <SearchResultsPage query={searchQuery} results={searchResults} selected={player.selected} isPlaying={player.isPlaying} onChooseTrack={(track) => void player.chooseTrack(track)} />}
           {activePage === "settings" && <SettingsPage />}
           {queueOpen ? (
-            <QueuePanel selected={player.selected} tracks={queue} isPlaying={player.isPlaying} onChooseTrack={(track) => void player.chooseTrack(track)} onClose={() => setQueueOpen(false)} />
+            <QueuePanel selected={player.selected} tracks={queue} upcomingTracks={player.upcomingTracks} shuffleEnabled={player.shuffleEnabled} isPlaying={player.isPlaying} onChooseTrack={(track) => void player.chooseTrack(track)} onClose={() => setQueueOpen(false)} />
           ) : showsInsights ? <InsightsPanel selected={player.selected} /> : null}
         </div>
 
@@ -325,7 +325,7 @@ function App() {
           isPlaying={player.isPlaying}
           progress={player.progress}
           onTogglePlayback={() => void player.togglePlayback()}
-          onSkip={(offset) => void player.skip(offset, queue)}
+          onSkip={(offset) => void player.skip(offset)}
           onSeek={player.seek}
           onVolumeChange={player.setVolume}
           timelineOpen={timelineOpen}
@@ -339,6 +339,10 @@ function App() {
             setTimelineOpen(false);
             setQueueOpen((open) => !open);
           }}
+          shuffleEnabled={player.shuffleEnabled}
+          repeatMode={player.repeatMode}
+          onToggleShuffle={player.toggleShuffle}
+          onCycleRepeatMode={player.cycleRepeatMode}
         />
       </section>
     </main>

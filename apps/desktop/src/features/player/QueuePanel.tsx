@@ -5,17 +5,15 @@ import type { Track } from "../../types/music";
 type QueuePanelProps = {
   selected: Track;
   tracks: Track[];
+  upcomingTracks: Track[];
+  shuffleEnabled: boolean;
   isPlaying: boolean;
   onChooseTrack: (track: Track) => void;
   onClose: () => void;
 };
 
-export function QueuePanel({ selected, tracks, isPlaying, onChooseTrack, onClose }: QueuePanelProps) {
-  const playableTracks = tracks.filter((track) => track.path);
-  const currentIndex = playableTracks.findIndex((track) => track.id === selected.id);
-  const upcomingTracks = currentIndex < 0
-    ? playableTracks
-    : [...playableTracks.slice(currentIndex + 1), ...playableTracks.slice(0, currentIndex)];
+export function QueuePanel({ selected, tracks, upcomingTracks, shuffleEnabled, isPlaying, onChooseTrack, onClose }: QueuePanelProps) {
+  const queueCount = tracks.filter((track) => track.path).length;
 
   return (
     <aside className="queue-panel utility-panel" aria-label="Current play queue">
@@ -39,7 +37,7 @@ export function QueuePanel({ selected, tracks, isPlaying, onChooseTrack, onClose
         <section className="queue-section queue-section--up-next">
           <div className="queue-section__heading">
             <span>Up next</span>
-            <small>{upcomingTracks.length} {upcomingTracks.length === 1 ? "track" : "tracks"}</small>
+            <small>{shuffleEnabled ? "Shuffled" : `${queueCount} ${queueCount === 1 ? "track" : "tracks"}`}</small>
           </div>
           {upcomingTracks.length ? (
             <div className="queue-list">
