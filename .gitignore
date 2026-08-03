@@ -16,10 +16,15 @@ __pycache__/
 .ruff_cache/
 .venv/
 venv/
+.python/
 
 # Local application data
 data/
 models/
+!services/analyzer/models/
+services/analyzer/models/*
+!services/analyzer/models/.gitignore
+!services/analyzer/models/manifest.json
 stems/
 waveforms/
 *.db

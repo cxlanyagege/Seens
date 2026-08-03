@@ -1,0 +1,22 @@
+{
+  "modelId": "discogs-effnet-mtg-jamendo-instrument",
+  "version": "1",
+  "sampleRate": 16000,
+  "files": [
+    {
+      "name": "discogs-effnet-bsdynamic-1.onnx",
+      "size": 18027718,
+      "url": "https://essentia.upf.edu/models/feature-extractors/discogs-effnet/discogs-effnet-bsdynamic-1.onnx"
+    },
+    {
+      "name": "mtg_jamendo_instrument-discogs-effnet-1.onnx",
+      "size": 2706492,
+      "url": "https://essentia.upf.edu/models/classification-heads/mtg_jamendo_instrument/mtg_jamendo_instrument-discogs-effnet-1.onnx"
+    },
+    {
+      "name": "mtg_jamendo_instrument-discogs-effnet-1.json",
+      "size": 3382,
+      "url": "https://essentia.upf.edu/models/classification-heads/mtg_jamendo_instrument/mtg_jamendo_instrument-discogs-effnet-1.json"
+    }
+  ]
+}

@@ -1,20 +1,16 @@
-import { Activity, AudioLines, MoreHorizontal, Music2, Piano, SlidersHorizontal, Sparkles } from "lucide-react";
+import { Activity, MoreHorizontal, Music2, Sparkles } from "lucide-react";
 import { Cover } from "../../components/Cover";
 import type { Track } from "../../types/music";
 import { useAudioInfo } from "../player/useAudioInfo";
+import { formatActiveDuration, getInstrumentColor } from "./instrumentStyle";
+import { useInstrumentAnalysis } from "./useInstrumentAnalysis";
 
-// Placeholder data until the local analysis sidecar supplies real results.
-const instruments = [
-  { name: "Drums", confidence: 98, color: "#ef765f", icon: Activity },
-  { name: "Bass", confidence: 94, color: "#b97cf2", icon: AudioLines },
-  { name: "Electric guitar", confidence: 89, color: "#5ca9ef", icon: Music2 },
-  { name: "Synthesizer", confidence: 83, color: "#65c99b", icon: SlidersHorizontal },
-  { name: "Piano", confidence: 61, color: "#e1b85b", icon: Piano },
-];
-
-export function InsightsPanel({ selected }: { selected: Track }) {
+export function InsightsPanel({ selected, onOpenAnalysis }: { selected: Track; onOpenAnalysis: () => void }) {
   const audioInfo = useAudioInfo(selected.path);
+  const analysis = useInstrumentAnalysis(selected.id, selected.path);
   const quality = formatAudioInfo(audioInfo.data, selected.path, audioInfo.status);
+  const instruments = analysis.data?.instruments ?? [];
+  const analysisLabel = analysis.status === "ready" ? `${instruments.length} found` : analysis.status === "loading" ? "Loading…" : analysis.status === "analyzing" ? "Analyzing…" : "Not analyzed";
 
   return (
     <aside className="insights-panel utility-panel">
@@ -29,17 +25,23 @@ export function InsightsPanel({ selected }: { selected: Track }) {
           </div>
         )}
       </div>
-      <div className="insight-title"><span><Sparkles /> Instruments detected</span><small>5 found</small></div>
+      <div className="insight-title"><span><Sparkles /> Instruments detected</span><small>{analysisLabel}</small></div>
       <div className="instrument-list">
-        {instruments.map(({ name, confidence, color, icon: Icon }) => (
-          <div className="instrument" key={name}>
-            <span className="instrument__icon" style={{ color, backgroundColor: `${color}18` }}><Icon /></span>
-            <span className="instrument__name"><b>{name}</b><i><em style={{ width: `${confidence}%`, background: color }} /></i></span>
-            <strong>{confidence}%</strong>
-          </div>
-        ))}
+        {analysis.status === "ready" && instruments.slice(0, 6).map(({ instrument, activeSeconds }) => {
+          const color = getInstrumentColor(instrument);
+          const activity = analysis.data?.durationSeconds ? Math.min(100, (activeSeconds / analysis.data.durationSeconds) * 100) : 0;
+          return (
+            <div className="instrument" key={instrument}>
+              <span className="instrument__icon" style={{ color, backgroundColor: `${color}18` }}><Music2 /></span>
+              <span className="instrument__name"><b>{instrument}</b><i><em style={{ width: `${activity}%`, background: color }} /></i></span>
+              <strong>{formatActiveDuration(activeSeconds)}</strong>
+            </div>
+          );
+        })}
+        {analysis.status !== "ready" && <p className="instrument-list__empty">Open the full analysis to scan this track and view its instrument timeline.</p>}
+        {analysis.status === "ready" && instruments.length === 0 && <p className="instrument-list__empty">No supported instruments crossed the current detection threshold.</p>}
       </div>
-      <button className="analysis-button"><Activity /> Open full analysis <span>→</span></button>
+      <button className="analysis-button" onClick={onOpenAnalysis}><Activity /> Open full analysis <span>→</span></button>
     </aside>
   );
 }

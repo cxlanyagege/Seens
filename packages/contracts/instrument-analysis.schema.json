@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://seens.app/contracts/instrument-analysis.v1.schema.json",
+  "title": "Instrument analysis result",
+  "type": "object",
+  "required": ["modelId", "modelVersion", "durationSeconds", "predictionIntervalSeconds", "instruments", "segments"],
+  "properties": {
+    "modelId": { "type": "string" },
+    "modelVersion": { "type": "string" },
+    "durationSeconds": { "type": "number", "minimum": 0 },
+    "predictionIntervalSeconds": { "type": "number", "exclusiveMinimum": 0 },
+    "instruments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["instrument", "confidence", "activeSeconds"],
+        "properties": {
+          "instrument": { "type": "string" },
+          "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+          "activeSeconds": { "type": "number", "minimum": 0 }
+        },
+        "additionalProperties": false
+      }
+    },
+    "segments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["instrument", "startSeconds", "endSeconds", "confidence", "peakConfidence"],
+        "properties": {
+          "instrument": { "type": "string" },
+          "startSeconds": { "type": "number", "minimum": 0 },
+          "endSeconds": { "type": "number", "minimum": 0 },
+          "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+          "peakConfidence": { "type": "number", "minimum": 0, "maximum": 1 }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

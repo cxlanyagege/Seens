@@ -5,7 +5,7 @@
 Seens (Codename Seenstruments) is a local-first desktop music player that helps listeners explore the instruments inside a song. Alongside familiar playback controls, it aims to identify which instruments are present, show when they appear, and eventually let users isolate and inspect individual stems.
 
 > [!NOTE]
-> Seens is currently in the planning and early development stage. The features and architecture described below represent the intended direction of the project and may evolve as the first prototype is built.
+> Seens currently has a functional local-player prototype and an experimental instrument-analysis path. Instrument scores and timeline thresholds are not yet calibrated against a product-quality validation set.
 
 ## Why Seens?
 
@@ -30,7 +30,7 @@ It is intended for:
 ### Instrument analysis
 
 - Detect multiple instruments in a track
-- Display an instrument timeline with confidence scores
+- Display a time-aligned instrument activity timeline
 - Estimate musical attributes such as tempo and key
 - Cache analysis results so each track is processed only when necessary
 
@@ -77,12 +77,12 @@ Decode and playback    Classification and separation
 | Desktop application | Tauri 2 | Cross-platform application shell |
 | User interface | React + TypeScript | Player and analysis visualizations |
 | Audio engine | Rust, Symphonia, and CPAL | Decoding and low-level playback |
-| Instrument recognition | Python and Essentia models | Multi-label instrument analysis |
+| Instrument recognition | Python, ONNX Runtime, and MTG models | Multi-label instrument analysis |
 | Source separation | Demucs-compatible models | Vocal and instrument stems |
 | Note transcription | Basic Pitch | Optional audio-to-MIDI analysis |
 | Local storage | SQLite | Library metadata, jobs, and cached results |
 
-The analysis layer will initially run as a bundled local sidecar process. This keeps model integration flexible while ensuring that users do not need to upload their music to a remote service.
+The prototype invokes the local Python analyzer as a one-shot process for each uncached request. A persistent bundled sidecar with lifecycle, cancellation, and progress reporting remains planned.
 
 ## Repository Layout
 
@@ -107,7 +107,7 @@ The intended workflow is:
 5. Save results together with the model version in the local database.
 6. Run computationally expensive stem separation only when requested.
 
-Model output is probabilistic. Seens will expose confidence where useful and avoid presenting uncertain classifications as absolute facts.
+Model output is probabilistic. The current UI presents detected activity and duration without converting raw model scores into confidence percentages.
 
 ## Roadmap
 
@@ -117,8 +117,10 @@ Model output is probabilistic. Seens will expose confidence where useful and avo
 - [x] Import and play local audio
 - [x] Build a music library backed by SQLite
 - [x] Generate waveform previews
-- [ ] Detect instruments across an entire track
-- [ ] Display a time-aligned instrument timeline
+- [x] Detect instruments across an entire track with the experimental ONNX pipeline
+- [x] Display and cache a time-aligned instrument activity timeline
+- [ ] Calibrate per-instrument thresholds and validate onset and offset quality
+- [ ] Add cancellable jobs and progress reporting
 - [ ] Estimate tempo and key
 
 ### Phase 2: Stem player
@@ -141,4 +143,16 @@ Seens is designed to process music locally. Audio files and analysis results sho
 
 ## Development
 
-Build and development instructions will be added once the initial application scaffold is in place.
+Prepare the analyzer, then run the native desktop application:
+
+```sh
+cd services/analyzer
+uv sync --extra dev --python 3.12
+.venv/bin/python scripts/fetch_models.py
+
+cd ../../apps/desktop
+npm install
+npm run tauri:dev
+```
+
+`npm run dev` provides a browser-only UI preview. File access, playback, and instrument inference require the Tauri application.

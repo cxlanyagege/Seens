@@ -1,3 +1,4 @@
+mod analyzer;
 mod audio;
 mod db;
 
@@ -44,6 +45,8 @@ pub fn run() {
             db::list_playlist_tracks,
             db::add_track_to_playlist,
             db::remove_track_from_playlist,
+            db::get_instrument_analysis,
+            db::analyze_track_instruments,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Seenstruments");

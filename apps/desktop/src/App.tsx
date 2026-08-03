@@ -252,6 +252,15 @@ function App() {
   const showsInsights = (activePage === "library" && tracks.length > 0) || activePage === "playlists" || activePage === "search";
   const showsUtilityPanel = queueOpen || showsInsights;
   const playableQueueCount = queue.filter((track) => track.path).length;
+  const markTrackAnalyzed = (trackId: number) => {
+    const update = (track: Track) => track.id === trackId ? { ...track, analyzed: true } : track;
+    setTracks((current) => current.map(update));
+    setPlaylistTracks((current) => current.map(update));
+  };
+  const openAnalysis = () => {
+    setQueueOpen(false);
+    setTimelineOpen(true);
+  };
 
   return (
     <main className="app-shell">
@@ -313,10 +322,10 @@ function App() {
           {activePage === "settings" && <SettingsPage />}
           {queueOpen ? (
             <QueuePanel selected={player.selected} tracks={queue} upcomingTracks={player.upcomingTracks} shuffleEnabled={player.shuffleEnabled} isPlaying={player.isPlaying} onChooseTrack={(track) => void player.chooseTrack(track)} onClose={() => setQueueOpen(false)} />
-          ) : showsInsights ? <InsightsPanel selected={player.selected} /> : null}
+          ) : showsInsights ? <InsightsPanel selected={player.selected} onOpenAnalysis={openAnalysis} /> : null}
         </div>
 
-        <InstrumentTimeline onSeek={player.seek} progress={player.progress} track={player.selected} visible={timelineOpen} />
+        <InstrumentTimeline onSeek={player.seek} progress={player.progress} track={player.selected} visible={timelineOpen} onAnalysisComplete={markTrackAnalyzed} />
         {createPlaylistOpen && <CreatePlaylistModal name={playlistName} onNameChange={setPlaylistName} onClose={() => setCreatePlaylistOpen(false)} onSubmit={submitPlaylist} />}
         {notice && <button className="notice-toast" onClick={() => setNotice(null)}>{notice}<span>×</span></button>}
         {error && <button className="error-toast" onClick={() => setError(null)}>{error}<span>×</span></button>}

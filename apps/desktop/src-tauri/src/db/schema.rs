@@ -30,6 +30,13 @@ pub(super) fn initialize(connection: &Connection) -> Result<(), String> {
                position INTEGER NOT NULL DEFAULT 0,
                added_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                PRIMARY KEY (playlist_id, track_id)
+             );
+             CREATE TABLE IF NOT EXISTS instrument_analyses (
+               track_id INTEGER PRIMARY KEY REFERENCES tracks(id) ON DELETE CASCADE,
+               model_id TEXT NOT NULL,
+               model_version TEXT NOT NULL,
+               result_json TEXT NOT NULL,
+               analyzed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
              );",
         )
         .map_err(|error| format!("Could not initialize the music library: {error}"))

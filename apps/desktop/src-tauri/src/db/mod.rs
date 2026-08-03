@@ -4,6 +4,7 @@
 //! implementation is split by responsibility: schema setup, metadata parsing,
 //! track persistence, playlist persistence, and serialized response models.
 
+mod analysis;
 mod metadata;
 mod models;
 mod playlists;
@@ -14,6 +15,7 @@ use rusqlite::Connection;
 use std::{path::Path, sync::Mutex};
 use tauri::State;
 
+use crate::analyzer::InstrumentAnalysis;
 use models::{LibraryImportResult, LibraryTrack, PlaylistSummary};
 
 /// Application-managed handle to the local music library.
@@ -116,4 +118,25 @@ pub fn remove_track_from_playlist(
     library: State<'_, LibraryDb>,
 ) -> Result<(), String> {
     playlists::remove_track_from_playlist(playlist_id, track_id, library)
+}
+
+#[tauri::command]
+pub fn get_instrument_analysis(
+    track_id: i64,
+    library: State<'_, LibraryDb>,
+) -> Result<Option<InstrumentAnalysis>, String> {
+    analysis::get(&library, track_id)
+}
+
+#[tauri::command]
+pub async fn analyze_track_instruments(
+    track_id: i64,
+    library: State<'_, LibraryDb>,
+) -> Result<InstrumentAnalysis, String> {
+    let path = analysis::track_path(&library, track_id)?;
+    let result = tauri::async_runtime::spawn_blocking(move || crate::analyzer::analyze(path))
+        .await
+        .map_err(|error| format!("The instrument analysis task stopped unexpectedly: {error}"))??;
+    analysis::save(&library, track_id, &result)?;
+    Ok(result)
 }
