@@ -26,9 +26,9 @@ pub struct LibraryDb(Mutex<Connection>);
 
 impl LibraryDb {
     pub fn open(path: &Path) -> Result<Self, String> {
-        let connection = Connection::open(path)
+        let mut connection = Connection::open(path)
             .map_err(|error| format!("Could not open the music library: {error}"))?;
-        schema::initialize(&connection)?;
+        schema::initialize(&mut connection)?;
         Ok(Self(Mutex::new(connection)))
     }
 
