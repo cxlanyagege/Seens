@@ -86,11 +86,14 @@ function App() {
 
   useEffect(() => {
     if (!isDesktopApp()) return;
+    let active = true;
     void listLibrary().then((savedTracks) => {
+      if (!active) return;
       const restored = savedTracks.map((track) => toTrack(track));
       setTracks(restored);
-      if (restored[0]) player.setSelected(restored[0]);
-    }).catch((reason) => setError(String(reason)));
+      if (restored[0]) void player.restoreTrack(restored[0]);
+    }).catch((reason) => { if (active) setError(String(reason)); });
+    return () => { active = false; };
   // The native library should be restored only once at startup.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -297,7 +300,7 @@ function App() {
               onImportFolder={importMusicFolder}
               onRemoveTracks={removeTracksFromLibrary}
               onChooseTrack={(track) => void player.chooseTrack(track)}
-              onSelectTrack={player.setSelected}
+              onSelectTrack={(track) => void player.prepareTrack(track)}
               onViewChange={setLibraryView}
               onFilterChange={setAnalysisFilter}
               onFilterOpenChange={setFilterOpen}
@@ -336,6 +339,7 @@ function App() {
           onTogglePlayback={() => void player.togglePlayback()}
           onSkip={(offset) => void player.skip(offset)}
           onSeek={player.seek}
+          volume={player.volume}
           onVolumeChange={player.setVolume}
           timelineOpen={timelineOpen}
           onToggleTimeline={() => {

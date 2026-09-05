@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { changeVolume, getPlayerStatus, loadAudio, pauseAudio, playAudio, seekAudio, stopAudio } from "../../services/player-api";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import * as playerApi from "../../services/player-api";
+import { PlaybackSession } from "./playback-session";
 import { isDesktopApp } from "../../services/runtime";
-import { fallbackTrack, type Track } from "../../types/music";
+import type { Track } from "../../types/music";
 
 export type RepeatMode = "off" | "all" | "one";
 
@@ -15,16 +16,14 @@ function shuffledTrackIds(tracks: Track[], excludedId: number) {
 }
 
 export function usePlayer(onError: (message: string | null) => void, queue: Track[]) {
-  const [selected, setSelected] = useState(fallbackTrack);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [progress, setProgress] = useState(0);
+  const [session] = useState(() => new PlaybackSession(playerApi, onError));
+  const { selected, isPlaying, progress, volume } = useSyncExternalStore(session.subscribe, session.getSnapshot);
   const [shuffleEnabled, setShuffleEnabled] = useState(false);
   const [repeatMode, setRepeatMode] = useState<RepeatMode>("off");
   const [shuffleRevision, setShuffleRevision] = useState(0);
   const shuffleRemainingRef = useRef<number[]>([]);
   const shuffleHistoryRef = useRef<number[]>([]);
   const shuffleForwardRef = useRef<number[]>([]);
-  const finishedHandledRef = useRef<string | null>(null);
 
   const playableQueue = useMemo(() => queue.filter((track) => track.path), [queue]);
 
@@ -49,73 +48,29 @@ export function usePlayer(onError: (message: string | null) => void, queue: Trac
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [queue, shuffleEnabled]);
 
-  const run = async (action: () => Promise<void>) => {
-    try {
-      onError(null);
-      await action();
-    } catch (reason) {
-      onError(String(reason));
-    }
-  };
-
-  const playTrack = (track: Track, recordShuffleHistory: boolean) => run(async () => {
+  const playTrack = (track: Track, recordShuffleHistory: boolean) => {
     if (shuffleEnabled && recordShuffleHistory && selected.path && selected.id !== track.id) {
       shuffleHistoryRef.current.push(selected.id);
       shuffleForwardRef.current = [];
       shuffleRemainingRef.current = shuffleRemainingRef.current.filter((id) => id !== track.id);
       bumpShuffleRevision();
     }
-
-    setSelected(track);
-    setProgress(0);
-    finishedHandledRef.current = null;
-    if (!track.path) {
-      setIsPlaying(false);
-      return;
-    }
-    await loadAudio(track.path);
-    await playAudio();
-    setIsPlaying(true);
-  });
+    return session.select(track, true);
+  };
 
   const chooseTrack = (track: Track) => playTrack(track, true);
+  const prepareTrack = (track: Track) => session.select(track);
+  const restoreTrack = (track: Track) => session.restore(track);
 
-  const prepareTrack = (track: Track) => run(async () => {
-    if (track.path) await loadAudio(track.path);
-    setSelected(track);
-    setProgress(0);
-    setIsPlaying(false);
-    finishedHandledRef.current = null;
-  });
-
-  const clearSelection = () => run(async () => {
-    const selectedPath = selected.path;
-    setSelected(fallbackTrack);
-    setIsPlaying(false);
-    setProgress(0);
-    finishedHandledRef.current = null;
+  const clearSelection = () => {
     shuffleRemainingRef.current = [];
     shuffleHistoryRef.current = [];
     shuffleForwardRef.current = [];
     bumpShuffleRevision();
-    if (selectedPath) await stopAudio();
-  });
+    return session.clear();
+  };
 
-  const togglePlayback = () => run(async () => {
-    if (!selected.path) throw new Error("Import a local audio file to start playback.");
-    if (isPlaying) {
-      await pauseAudio();
-      setIsPlaying(false);
-      return;
-    }
-    if (finishedHandledRef.current === selected.path) {
-      await loadAudio(selected.path);
-      setProgress(0);
-      finishedHandledRef.current = null;
-    }
-    await playAudio();
-    setIsPlaying(true);
-  });
+  const togglePlayback = () => session.toggle();
 
   const takeShuffledTrack = (allowRefill: boolean) => {
     const byId = new Map(playableQueue.map((track) => [track.id, track]));
@@ -189,37 +144,20 @@ export function usePlayer(onError: (message: string | null) => void, queue: Trac
 
   useEffect(() => {
     if (!isDesktopApp() || !selected.path) return;
-    const selectedPath = selected.path;
-    const timer = window.setInterval(async () => {
-      try {
-        const status = await getPlayerStatus();
-        setIsPlaying(status.playing);
-        if (status.durationSeconds > 0) setProgress(Math.min(100, (status.positionSeconds / status.durationSeconds) * 100));
-        if (!status.finished) {
-          finishedHandledRef.current = null;
-          return;
-        }
-        if (finishedHandledRef.current === selectedPath) return;
-        finishedHandledRef.current = selectedPath;
-        await handleTrackFinished();
-      } catch {
-        // A final request can race with native application shutdown.
-      }
+    let active = true;
+    const timer = window.setInterval(() => {
+      void session.poll(handleTrackFinished, () => active);
     }, 300);
-    return () => window.clearInterval(timer);
-  // Playback mode and queue changes must affect the next completion event.
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  // Queue and mode changes must invalidate callbacks from the previous subscription.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playableQueue, repeatMode, selected.path, shuffleEnabled]);
+  }, [session, playableQueue, repeatMode, selected.path, shuffleEnabled]);
 
-  const seek = (percentage: number) => {
-    setProgress(percentage);
-    if (percentage < 100) finishedHandledRef.current = null;
-    if (selected.durationSeconds) void run(() => seekAudio((percentage / 100) * selected.durationSeconds!));
-  };
-
-  const setVolume = (volume: number) => {
-    if (selected.path) void run(() => changeVolume(volume));
-  };
+  const seek = (percentage: number) => { void session.seek(percentage); };
+  const setVolume = (value: number) => { void session.setVolume(value); };
 
   const cycleRepeatMode = () => setRepeatMode((mode) => mode === "off" ? "all" : mode === "all" ? "one" : "off");
 
@@ -238,14 +176,15 @@ export function usePlayer(onError: (message: string | null) => void, queue: Trac
 
   return {
     selected,
-    setSelected,
     isPlaying,
     progress,
+    volume,
     shuffleEnabled,
     repeatMode,
     upcomingTracks,
     chooseTrack,
     prepareTrack,
+    restoreTrack,
     clearSelection,
     togglePlayback,
     toggleShuffle: () => setShuffleEnabled((enabled) => !enabled),

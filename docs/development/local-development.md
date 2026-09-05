@@ -42,6 +42,18 @@ preview where native capabilities are intentionally unavailable.
 
 ## Verification
 
+Run the playback session regression tests with:
+
+```sh
+cd apps/desktop
+npm test
+```
+
+These tests compile the framework-independent playback session with TypeScript
+and use Node's built-in test runner with a controlled transport adapter. They
+cover restoration, selection failures, delayed status responses, command ordering,
+completion handling, and volume state without requiring an audio device.
+
 Run the frontend type checks and production build with:
 
 ```sh

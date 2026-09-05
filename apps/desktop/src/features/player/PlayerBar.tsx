@@ -1,4 +1,3 @@
-import { useState } from "react";
 import type { CSSProperties } from "react";
 import { ChevronDown, ChevronUp, ListMusic, Pause, Play, Repeat1, Repeat2, Shuffle, SkipBack, SkipForward, Volume2 } from "lucide-react";
 import { Cover } from "../../components/Cover";
@@ -13,6 +12,7 @@ type PlayerBarProps = {
   onTogglePlayback: () => void;
   onSkip: (offset: number) => void;
   onSeek: (percentage: number) => void;
+  volume: number;
   onVolumeChange: (volume: number) => void;
   timelineOpen: boolean;
   onToggleTimeline: () => void;
@@ -25,10 +25,9 @@ type PlayerBarProps = {
   onCycleRepeatMode: () => void;
 };
 
-export function PlayerBar({ selected, isPlaying, progress, onTogglePlayback, onSkip, onSeek, onVolumeChange, timelineOpen, onToggleTimeline, queueOpen, queueCount, onToggleQueue, shuffleEnabled, repeatMode, onToggleShuffle, onCycleRepeatMode }: PlayerBarProps) {
-  const [volume, setVolume] = useState(72);
+export function PlayerBar({ selected, isPlaying, progress, onTogglePlayback, onSkip, onSeek, volume, onVolumeChange, timelineOpen, onToggleTimeline, queueOpen, queueCount, onToggleQueue, shuffleEnabled, repeatMode, onToggleShuffle, onCycleRepeatMode }: PlayerBarProps) {
   const progressStyle = { "--range-progress": `${Math.min(100, Math.max(0, progress))}%` } as CSSProperties;
-  const volumeStyle = { "--range-progress": `${volume}%` } as CSSProperties;
+  const volumeStyle = { "--range-progress": `${volume * 100}%` } as CSSProperties;
 
   return (
     <footer className={`player ${timelineOpen ? "player--timeline-open" : ""}`}>
@@ -60,7 +59,7 @@ export function PlayerBar({ selected, isPlaying, progress, onTogglePlayback, onS
           <ListMusic />
           {queueCount > 0 && <small>{queueCount > 99 ? "99+" : queueCount}</small>}
         </button>
-        <div className="player__volume"><Volume2 /><input type="range" value={volume} style={volumeStyle} aria-label="Volume" onChange={(event) => { const nextVolume = Number(event.target.value); setVolume(nextVolume); onVolumeChange(nextVolume / 100); }} /></div>
+        <div className="player__volume"><Volume2 /><input type="range" value={Math.round(volume * 100)} style={volumeStyle} aria-label="Volume" onChange={(event) => onVolumeChange(Number(event.target.value) / 100)} /></div>
       </div>
     </footer>
   );

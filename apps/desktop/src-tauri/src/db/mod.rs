@@ -5,6 +5,7 @@
 //! track persistence, playlist persistence, and serialized response models.
 
 mod analysis;
+mod imports;
 mod metadata;
 mod models;
 mod playlists;
@@ -12,7 +13,10 @@ mod schema;
 mod tracks;
 
 use rusqlite::Connection;
-use std::{path::Path, sync::Mutex};
+use std::{
+    path::Path,
+    sync::{Arc, Mutex},
+};
 use tauri::State;
 
 use crate::analyzer::InstrumentAnalysis;
@@ -22,14 +26,15 @@ use models::{LibraryImportResult, LibraryTrack, PlaylistSummary};
 ///
 /// `rusqlite::Connection` is not concurrently shareable. The mutex serializes
 /// the short command-level reads and writes issued by Tauri handlers.
-pub struct LibraryDb(Mutex<Connection>);
+#[derive(Clone)]
+pub struct LibraryDb(Arc<Mutex<Connection>>);
 
 impl LibraryDb {
     pub fn open(path: &Path) -> Result<Self, String> {
         let mut connection = Connection::open(path)
             .map_err(|error| format!("Could not open the music library: {error}"))?;
         schema::initialize(&mut connection)?;
-        Ok(Self(Mutex::new(connection)))
+        Ok(Self(Arc::new(Mutex::new(connection))))
     }
 
     pub(super) fn connection(&self) -> Result<std::sync::MutexGuard<'_, Connection>, String> {
@@ -48,27 +53,36 @@ pub fn list_library(library: State<'_, LibraryDb>) -> Result<Vec<LibraryTrack>, 
 }
 
 #[tauri::command]
-pub fn import_library_track(
+pub async fn import_library_track(
     path: String,
     library: State<'_, LibraryDb>,
 ) -> Result<LibraryTrack, String> {
-    tracks::import_library_track(path, library)
+    imports::run(library.inner().clone(), move |library| {
+        imports::import_track(&path, library)
+    })
+    .await
 }
 
 #[tauri::command]
-pub fn import_library_tracks(
+pub async fn import_library_tracks(
     paths: Vec<String>,
     library: State<'_, LibraryDb>,
 ) -> Result<LibraryImportResult, String> {
-    tracks::import_library_tracks(paths, library)
+    imports::run(library.inner().clone(), move |library| {
+        imports::import_tracks(paths, library)
+    })
+    .await
 }
 
 #[tauri::command]
-pub fn import_library_folder(
+pub async fn import_library_folder(
     path: String,
     library: State<'_, LibraryDb>,
 ) -> Result<LibraryImportResult, String> {
-    tracks::import_library_folder(path, library)
+    imports::run(library.inner().clone(), move |library| {
+        imports::import_folder(&path, library)
+    })
+    .await
 }
 
 #[tauri::command]

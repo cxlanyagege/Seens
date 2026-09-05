@@ -7,6 +7,9 @@
 pub(crate) mod info;
 pub(crate) mod waveform;
 
+#[cfg(test)]
+mod tests;
+
 use rodio::{Decoder, OutputStream, OutputStreamBuilder, Sink, Source};
 use serde::Serialize;
 use std::{
@@ -46,7 +49,6 @@ enum AudioCommand {
     Status(Sender<Result<PlayerStatus, String>>),
 }
 
-#[derive(Default)]
 struct PlayerInner {
     // The output stream must live at least as long as the sink; dropping it
     // immediately would stop playback even though the sink still exists.
@@ -54,6 +56,8 @@ struct PlayerInner {
     sink: Option<Sink>,
     duration_seconds: f64,
     path: Option<String>,
+    session_id: u64,
+    volume: f32,
 }
 
 #[derive(Serialize)]
@@ -62,16 +66,64 @@ pub struct LoadedTrack {
     path: String,
     file_name: String,
     duration_seconds: f64,
+    session_id: u64,
 }
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PlayerStatus {
+    path: Option<String>,
+    session_id: u64,
+    volume: f32,
     loaded: bool,
     playing: bool,
     finished: bool,
     position_seconds: f64,
     duration_seconds: f64,
+}
+
+impl Default for PlayerInner {
+    fn default() -> Self {
+        Self {
+            stream: None,
+            sink: None,
+            duration_seconds: 0.0,
+            path: None,
+            session_id: 0,
+            volume: 0.72,
+        }
+    }
+}
+
+impl PlayerInner {
+    fn set_volume(&mut self, volume: f32) -> CommandResult {
+        if !volume.is_finite() {
+            return Err("Volume must be finite".into());
+        }
+        self.volume = volume.clamp(0.0, 1.0);
+        if let Some(sink) = &self.sink {
+            sink.set_volume(self.volume);
+        }
+        Ok(())
+    }
+
+    // Configure an empty sink before appending any source, so loading cannot
+    // briefly emit sound or reset a muted player to the sink's default volume.
+    fn prepare_sink(&self, sink: Sink) -> Sink {
+        sink.pause();
+        sink.set_volume(self.volume);
+        sink
+    }
+
+    fn clear(&mut self) {
+        if let Some(sink) = self.sink.take() {
+            sink.stop();
+        }
+        self.stream = None;
+        self.path = None;
+        self.duration_seconds = 0.0;
+        self.session_id += 1;
+    }
 }
 
 impl Default for AudioPlayer {
@@ -125,26 +177,21 @@ fn audio_worker(receiver: Receiver<AudioCommand>) {
                 }));
             }
             AudioCommand::Stop(reply) => {
-                if let Some(sink) = player.sink.take() {
-                    sink.stop();
-                }
-                player.stream = None;
-                player.path = None;
-                player.duration_seconds = 0.0;
+                player.clear();
                 let _ = reply.send(Ok(()));
             }
             AudioCommand::Seek { seconds, reply } => {
                 let _ = reply.send(with_sink(&player, |sink| {
+                    if !seconds.is_finite() {
+                        return Err("Seek position must be finite".into());
+                    }
                     let target = seconds.clamp(0.0, player.duration_seconds);
                     sink.try_seek(Duration::from_secs_f64(target))
                         .map_err(|error| format!("Could not seek in this track: {error}"))
                 }));
             }
             AudioCommand::Volume { volume, reply } => {
-                let _ = reply.send(with_sink(&player, |sink| {
-                    sink.set_volume(volume.clamp(0.0, 1.0));
-                    Ok(())
-                }));
+                let _ = reply.send(player.set_volume(volume));
             }
             AudioCommand::Status(reply) => {
                 let _ = reply.send(Ok(status(&player)));
@@ -172,11 +219,8 @@ fn load(player: &mut PlayerInner, path: String) -> Result<LoadedTrack, String> {
     let duration_seconds = source.total_duration().unwrap_or_default().as_secs_f64();
     let stream = OutputStreamBuilder::open_default_stream()
         .map_err(|error| format!("Could not open the system audio output: {error}"))?;
-    let sink = Sink::connect_new(stream.mixer());
+    let sink = player.prepare_sink(Sink::connect_new(stream.mixer()));
     sink.append(source);
-    // Loading and playing are separate commands. This prevents selecting a
-    // file from producing sound before the frontend has updated its state.
-    sink.pause();
 
     if let Some(previous) = player.sink.take() {
         previous.stop();
@@ -185,6 +229,7 @@ fn load(player: &mut PlayerInner, path: String) -> Result<LoadedTrack, String> {
     player.sink = Some(sink);
     player.duration_seconds = duration_seconds;
     player.path = Some(path.clone());
+    player.session_id += 1;
 
     let file_name = source_path
         .file_stem()
@@ -195,6 +240,7 @@ fn load(player: &mut PlayerInner, path: String) -> Result<LoadedTrack, String> {
         path,
         file_name,
         duration_seconds,
+        session_id: player.session_id,
     })
 }
 
@@ -202,6 +248,9 @@ fn status(player: &PlayerInner) -> PlayerStatus {
     // The frontend polls this lightweight snapshot to update its seek bar.
     match player.sink.as_ref() {
         Some(sink) => PlayerStatus {
+            path: player.path.clone(),
+            session_id: player.session_id,
+            volume: player.volume,
             loaded: true,
             playing: !sink.is_paused() && !sink.empty(),
             finished: sink.empty(),
@@ -209,6 +258,9 @@ fn status(player: &PlayerInner) -> PlayerStatus {
             duration_seconds: player.duration_seconds,
         },
         None => PlayerStatus {
+            path: None,
+            session_id: player.session_id,
+            volume: player.volume,
             loaded: false,
             playing: false,
             finished: false,
@@ -218,38 +270,38 @@ fn status(player: &PlayerInner) -> PlayerStatus {
     }
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn load_audio(path: String, player: State<'_, AudioPlayer>) -> Result<LoadedTrack, String> {
     // Tauri commands remain thin adapters; playback logic belongs to the worker.
     player.request(|reply| AudioCommand::Load { path, reply })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn play_audio(player: State<'_, AudioPlayer>) -> CommandResult {
     player.request(AudioCommand::Play)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn pause_audio(player: State<'_, AudioPlayer>) -> CommandResult {
     player.request(AudioCommand::Pause)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn stop_audio(player: State<'_, AudioPlayer>) -> CommandResult {
     player.request(AudioCommand::Stop)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn seek_audio(seconds: f64, player: State<'_, AudioPlayer>) -> CommandResult {
     player.request(|reply| AudioCommand::Seek { seconds, reply })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn set_volume(volume: f32, player: State<'_, AudioPlayer>) -> CommandResult {
     player.request(|reply| AudioCommand::Volume { volume, reply })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn player_status(player: State<'_, AudioPlayer>) -> Result<PlayerStatus, String> {
     player.request(AudioCommand::Status)
 }

@@ -1,18 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 
-export type LoadedTrack = {
-  path: string;
-  fileName: string;
-  durationSeconds: number;
-};
-
-export type PlayerStatus = {
-  loaded: boolean;
-  playing: boolean;
-  finished: boolean;
-  positionSeconds: number;
-  durationSeconds: number;
-};
+import type { LoadedTrack, PlayerStatus } from "../features/player/playback-types";
+export type { LoadedTrack, PlayerStatus } from "../features/player/playback-types";
 
 export const loadAudio = (path: string) => invoke<LoadedTrack>("load_audio", { path });
 export const playAudio = () => invoke<void>("play_audio");
